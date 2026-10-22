@@ -1,0 +1,32 @@
+spring:
+  config:
+    import: optional:file:.local/push.properties
+  datasource:
+    url: ${DB_URL:jdbc:mariadb://127.0.0.1:3306/dating_db}
+    username: ${DB_USERNAME:dating_user}
+    password: ${DB_PASSWORD:dating_password}
+    driver-class-name: org.mariadb.jdbc.Driver
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_FILE_SIZE:10MB}
+      max-request-size: ${MAX_UPLOAD_REQUEST_SIZE:12MB}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-this-secret-key-change-this-secret-key}
+    expiration-ms: 3600000
+  admin:
+    review-key: ${ADMIN_REVIEW_KEY:change-admin-review-key}
+  upload:
+    dir: uploads
+  auth:
+    refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:false}
+    refresh-cookie-max-age-seconds: ${REFRESH_COOKIE_MAX_AGE_SECONDS:1209600}
+  phone-auth:
+    expose-dev-code: ${PHONE_AUTH_EXPOSE_DEV_CODE:true}

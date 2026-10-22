@@ -1,0 +1,15 @@
+<template><section class="social-page"><h1>매칭현황</h1><div class="social-tabs"><button v-for="t in tabs" :class="{selected:tab===t[0]}" @click="tab=t[0]">{{ t[1] }} {{ data[t[0]].length }}</button></div><p v-if="error" role="alert">{{ error }} <button @click="load">다시 확인</button></p><p v-if="loading">불러오는 중…</p><p v-else-if="!data[tab].length" class="social-empty">{{ tab==='received'?'아직 받은 좋아요가 없어요.':tab==='sent'?'아직 보낸 좋아요가 없어요.':'서로 좋아요를 보내면 매칭돼요.' }}</p><article v-for="c in data[tab]" :key="c.person.id" class="member-row" tabindex="0" v-longpress="()=>actions.open(c.person,c.matched?'matched':'match')"><AvatarLink :person="c.person"/><div class="member-copy"><RouterLink class="person-link" :to="`/members/${c.person.id}`">{{ c.person.nickname }} · {{ c.person.age }}</RouterLink><p>{{ c.person.region }}</p><div class="member-actions"><template v-if="tab==='received'"><button class="primary" :disabled="busy" @click="like(c)">♡ 나도 좋아요</button><button :disabled="busy" @click="dismiss(c)">숨기기</button></template><button v-if="c.roomId" @click="router.push(`/chats/${c.roomId}`)">대화하기</button><button v-else @click="direct.open(c.person.id)">메시지 보내기</button></div></div></article><DirectMessageDialog ref="direct"/><MemberActions ref="actions" @changed="load"/></section></template>
+<script setup>
+import AvatarLink from '../../components/AvatarLink.vue';
+import MemberActions from '../../components/MemberActions.vue';import {vLongpress} from '../../components/longPress';
+import { acknowledgeNotifications } from "../../components/notificationEvents";
+import {ref,onMounted,onUnmounted,watch} from 'vue';import {useRouter} from 'vue-router';import api from '../../api/api';import DirectMessageDialog from '../../components/DirectMessageDialog.vue';import '../../components/social.css';
+const actions=ref(),router=useRouter(),direct=ref(),tab=ref('received'),data=ref({received:[],sent:[],matched:[]}),error=ref(''),loading=ref(true),busy=ref(false);const tabs=[['received','받은 좋아요'],['sent','보낸 좋아요'],['matched','매칭']];let timer,inflight=false,disposed=false;
+const photo=p=>p?new URL(p,api.defaults.baseURL).href:'';
+async function load(){if(inflight||disposed)return;inflight=true;try{const res=await api.get('/social/matches');if(!disposed){data.value=res.data;error.value='';acknowledge();}}catch{error.value='매칭현황을 불러오지 못했어요.';}finally{loading.value=false;inflight=false;}}
+async function like(c){busy.value=true;try{await api.post(`/social/likes/${c.person.id}`);tab.value='matched';await load();}catch(e){error.value=e.response?.data?.message||'좋아요를 보내지 못했어요.';}finally{busy.value=false;}}
+async function dismiss(c){busy.value=true;try{await api.post(`/social/likes/${c.person.id}/dismiss`);await load();}catch{error.value='숨기지 못했어요.';}finally{busy.value=false;}}
+function acknowledge(){if(!disposed)acknowledgeNotifications(data.value[tab.value].map(c=>c.eventKey));}
+watch(tab,acknowledge);
+onMounted(()=>{load();timer=setInterval(()=>{if(!document.hidden)load();},5000);});onUnmounted(()=>{disposed=true;clearInterval(timer);});
+</script>

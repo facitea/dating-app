@@ -1,0 +1,1 @@
+<template><section class="social-page"><header class="utility-header"><button @click="router.back()" aria-label="뒤로">‹</button><h1>내 사진</h1></header><PhotoEditor/></section></template><script setup>import {useRouter} from 'vue-router';import PhotoEditor from '../../components/PhotoEditor.vue';import '../../components/social.css';const router=useRouter();</script>

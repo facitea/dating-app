@@ -1,0 +1,53 @@
+# Dependencies and generated builds
+node_modules/
+dist/
+.gradle/
+build/
+*.class
+
+# Local backups (keep on disk, never publish)
+*-backup-*/
+backup/
+backups/
+*.bak
+*.orig
+
+# Runtime logs, uploads and local databases
+*.log
+*.log.*
+*.pid
+backend/uploads/
+.local/
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+dumps/
+db-backup/
+*.sql.gz
+*.dump
+
+# Secrets and local configuration; examples are safe to publish
+.env
+.env.*
+!.env.example
+!.env.*.example
+*firebase-service-account*.json
+service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+application-local.yml
+application-local.yaml
+application-local.properties
+
+# One-off local diagnostics
+/upload-response.json
+/backend/BcryptGen.java
+/package-lock.json
+.DS_Store
+Thumbs.db
+.idea/

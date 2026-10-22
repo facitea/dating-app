@@ -1,0 +1,3 @@
+self.addEventListener('push',event=>{let p={};try{p=event.data?.json()||{};}catch{}event.waitUntil(self.registration.showNotification(p.title||'새 알림',{body:p.body||'앱에서 새로운 소식을 확인해 주세요.',tag:'dating-notice',data:{url:'/notifications'}}));});
+self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(async windows=>{const target=new URL('/notifications',self.location.origin).href;for(const w of windows){if(new URL(w.url).origin===self.location.origin){await w.navigate(target);return w.focus();}}return clients.openWindow(target);}));});
+self.addEventListener('activate',event=>event.waitUntil(clients.claim()));

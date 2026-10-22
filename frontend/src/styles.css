@@ -1,0 +1,63 @@
+:root {
+  color-scheme: light;
+  --app-bg:
+    radial-gradient(circle at top, rgba(255, 233, 221, 0.95) 0%, rgba(255, 233, 221, 0) 30%),
+    linear-gradient(180deg, #fff8f4 0%, #ffe8dd 46%, #ffd6c5 100%);
+  --app-surface: rgba(255, 252, 249, 0.88);
+  --app-surface-strong: rgba(255, 252, 249, 0.96);
+  --app-border: rgba(233, 193, 175, 0.82);
+  --app-shadow: 0 24px 48px rgba(122, 69, 50, 0.12);
+  --app-text: #31211d;
+  --app-muted: #765a51;
+  --app-accent: #d66d4d;
+  --app-accent-strong: #ba5437;
+  --app-radius: 28px;
+  font-family: "SUIT Variable", "Pretendard", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+html {
+  background: #fff8f4;
+}
+
+body {
+  margin: 0;
+  color: var(--app-text);
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26), transparent 18%),
+    radial-gradient(circle at bottom, rgba(214, 109, 77, 0.08), transparent 34%);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+#app {
+  isolation: isolate;
+}

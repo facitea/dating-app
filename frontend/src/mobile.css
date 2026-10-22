@@ -1,0 +1,94 @@
+/* Loaded from App.vue. Every rule is limited to customer routes. */
+.mobile-client {
+  width: min(100%, 480px);
+  margin-inline: auto;
+  min-height: 100dvh;
+  overflow-wrap: anywhere;
+}
+.mobile-client *, .mobile-client *::before, .mobile-client *::after { min-width: 0; }
+.mobile-client :is(.auth-page, .review-page, .complete-page, .signup-page, .simple-page, .profile-page, .support-page, .today-page) {
+  min-height: 100dvh !important;
+  padding: max(20px, env(safe-area-inset-top)) 16px 24px !important;
+  align-items: flex-start !important;
+}
+.mobile-client .user-app-main { min-height: 100dvh; padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+.mobile-client .user-app-main :is(.simple-page, .profile-page, .support-page, .today-page) {
+  min-height: calc(100dvh - 84px - env(safe-area-inset-bottom)) !important;
+}
+.mobile-client :is(.auth-card, .review-card, .complete-card, .signup-card) {
+  width: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 24px 18px !important;
+  border-radius: 24px !important;
+}
+.mobile-client :is(.simple-shell, .profile-shell, .support-shell, .today-shell) {
+  width: 100% !important;
+  margin: 0 !important;
+  display: grid;
+  align-content: start;
+  gap: 14px !important;
+}
+.mobile-client :is(.page-card, .simple-card, .hero-card, .section-card) {
+  padding: 20px 16px !important;
+  border-radius: 22px !important;
+}
+.mobile-client :is(h1, h2, h3, p) { word-break: keep-all; overflow-wrap: anywhere; }
+.mobile-client h1 { font-size: 25px !important; line-height: 1.3; letter-spacing: -.04em; }
+.mobile-client h2 { font-size: 19px !important; line-height: 1.4; letter-spacing: -.025em; }
+.mobile-client .description { font-size: 14px; line-height: 1.6 !important; margin-top: 8px !important; }
+.mobile-client :is(.eyebrow, .section-label) { margin-bottom: 6px !important; font-size: 10px !important; }
+.mobile-client :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
+  max-width: 100%; width: 100%; font-size: 16px !important; padding: 13px 14px !important;
+  border-radius: 14px !important; scroll-margin-block: 80px;
+}
+.mobile-client :is(button, .ghost-button, .primary-button, .logout-button) { min-height: 44px; touch-action: manipulation; }
+.mobile-client :is(.primary-button, .ghost-button, .logout-button) { border-radius: 14px !important; font-size: 14px !important; }
+.mobile-client :is(.auth-form, .profile-form, .form-grid) { gap: 16px !important; }
+.mobile-client :is(.form-grid, .region-grid, .triple-grid, .info-grid) { grid-template-columns: minmax(0, 1fr) !important; }
+.mobile-client .section-head { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
+.mobile-client .helper-row { flex-wrap: wrap; gap: 8px 16px; }
+.mobile-client .helper-row a { min-height: 44px; display: inline-flex; align-items: center; font-size: 13px; }
+.mobile-client :is(.policy-box, .verification-box) { padding: 12px !important; border-radius: 16px !important; font-size: 13px; }
+.mobile-client .bottom-nav {
+  bottom: 0 !important; width: min(100%, 480px) !important;
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom)) !important;
+  border-radius: 22px 22px 0 0 !important; gap: 4px !important;
+}
+.mobile-client .nav-item { min-height: 58px !important; padding: 6px 4px !important; border-radius: 16px !important; }
+.mobile-client .nav-icon { width: 22px; height: 22px; }
+.mobile-client .hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; }
+.mobile-client .stat-card { padding: 12px 6px !important; border-radius: 16px !important; text-align: center; }
+.mobile-client .stat-card span { font-size: 10px !important; }
+.mobile-client .stat-card strong { font-size: 16px !important; margin-top: 6px !important; }
+.mobile-client .discover-grid { gap: 16px; }
+.mobile-client .discover-card { border-radius: 22px; }
+.mobile-client .discover-photo { min-height: 240px !important; }
+.mobile-client .action-row { display: grid !important; grid-template-columns: 1fr 1.2fr 1fr; gap: 6px !important; width: 100%; }
+.mobile-client .action-button { width: 100%; min-height: 44px; padding: 10px 6px !important; font-size: 13px; }
+.mobile-client .modal-actions { grid-template-columns: 1fr 1fr; }
+.mobile-client .modal-backdrop { z-index: 60; align-items: end !important; padding: 0 !important; }
+.mobile-client .modal-card {
+  width: min(100%, 480px) !important; max-height: 90dvh; overflow-y: auto !important;
+  border-radius: 26px 26px 0 0 !important; padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-client .summary-list { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+.mobile-client .summary-list > div { padding: 12px !important; border-radius: 14px !important; }
+.mobile-client .summary-list > div:first-child { grid-column: 1 / -1; }
+.mobile-client .summary-list dd { font-size: 14px; }
+.mobile-client .profile-menu { width: 100%; }
+.mobile-client .profile-menu summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-weight: 700; list-style: none; }
+.mobile-client .profile-menu summary::-webkit-details-marker { display: none; }
+.mobile-client .profile-menu summary::after { content: '+'; font-size: 22px; }
+.mobile-client .profile-menu[open] summary::after { content: '−'; }
+.mobile-client .profile-menu .header-actions { display: grid; grid-template-columns: 1fr; gap: 8px; padding-top: 8px; }
+.mobile-client .profile-menu button { width: 100%; text-align: left; }
+.mobile-client .intro-stage { width: min(100%, 480px); margin-inline: auto; }
+.mobile-client .chatbot-fab { width: 56px; height: 56px; border-radius: 18px; gap: 2px; }
+.mobile-client .chatbot-fab span { font-size: 10px; }
+.mobile-client .chatbot-panel { max-height: 65dvh; overflow-y: auto; }
+.mobile-client :focus-visible { outline: 2px solid var(--app-accent-strong); outline-offset: 3px; }
+@media (max-width: 350px) {
+  .mobile-client :is(.auth-page, .review-page, .simple-page, .profile-page, .support-page, .today-page) { padding-inline: 10px !important; }
+  .mobile-client :is(.auth-card, .page-card, .section-card) { padding-inline: 12px !important; }
+}

@@ -1,0 +1,5 @@
+<template><RouterLink class="avatar-link" :to="`/members/${person.id}`" :aria-label="`${person.nickname} 프로필 보기`" @click.stop @keydown.enter.stop><img v-if="person.imageUrl && !failed" :src="photo" alt="" draggable="false" @error="failed=true"/><span v-else aria-hidden="true">{{person.nickname?.slice(0,1)||'♡'}}</span></RouterLink></template>
+<script setup>
+import {ref,computed,watch} from 'vue';import api from '../api/api';
+const props=defineProps({person:{type:Object,required:true}}),failed=ref(false);const photo=computed(()=>props.person.imageUrl?new URL(props.person.imageUrl,api.defaults.baseURL).href:'');watch(()=>props.person.imageUrl,()=>failed.value=false);
+</script><style scoped>.avatar-link{width:var(--avatar-size,56px);height:var(--avatar-size,56px);flex:none;display:grid;place-items:center;border-radius:50%;overflow:hidden;background:#f4e8e1;color:#a56750;text-decoration:none;font-size:20px}.avatar-link img{width:100%;height:100%;object-fit:cover;border-radius:inherit}.avatar-link:focus-visible{outline:2px solid #d56f4e;outline-offset:3px}</style>
