@@ -86,6 +86,22 @@ public class AuthController {
         }
     }
 
+    public record GoogleRequest(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=16000) String idToken,
+                                @jakarta.validation.constraints.Size(max=100) String existingPassword) {}
+    @PostMapping("/google")
+    public AuthService.GoogleResult google(@Valid @RequestBody GoogleRequest request,HttpServletRequest httpRequest,HttpServletResponse response) {
+        var context=buildAbuseContext(httpRequest);
+        abuseProtectionService.protectLogin("google:"+context.ipAddress(),context);
+        try {
+            var result=authService.googleLogin(request.idToken(),request.existingPassword());
+            if(result.auth()!=null)withRefreshCookie(result.auth(),response);
+            return result;
+        } catch(org.springframework.web.server.ResponseStatusException e) {
+            abuseProtectionService.recordFailure("GOOGLE_LOGIN_FAILED","IP",context.ipAddress(),context,e.getReason());
+            throw e;
+        }
+    }
+
     @PostMapping("/phone/request")
     public PhoneVerificationStartResponse requestPhoneVerification(
             @Valid @RequestBody PhoneVerificationRequest request,

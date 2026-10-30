@@ -1,4 +1,4 @@
-<template><RouterLink class="avatar-link" :to="`/members/${person.id}`" :aria-label="`${person.nickname} 프로필 보기`" @click.stop @keydown.enter.stop><img v-if="person.imageUrl && !failed" :src="photo" alt="" draggable="false" @error="failed=true"/><span v-else aria-hidden="true">{{person.nickname?.slice(0,1)||'♡'}}</span></RouterLink></template>
+<template><RouterLink class="avatar-link" :to="`/members/${person.id}`" :aria-label="`${person.nickname} 프로필 보기`" @click.stop @keydown.enter.stop><img v-if="person.imageUrl && !failed" v-private-src="photo" alt="" draggable="false" @error="failed=true"/><span v-else aria-hidden="true">{{person.nickname?.slice(0,1)||'♡'}}</span></RouterLink></template>
 <script setup>
 import {ref,computed,watch} from 'vue';import api from '../api/api';
 const props=defineProps({person:{type:Object,required:true}}),failed=ref(false);const photo=computed(()=>props.person.imageUrl?new URL(props.person.imageUrl,api.defaults.baseURL).href:'');watch(()=>props.person.imageUrl,()=>failed.value=false);

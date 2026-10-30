@@ -22,9 +22,10 @@ public class JwtUtil {
 
     public JwtUtil(
             com.dating.backend.repository.UserRepository users,
-            @Value("${app.jwt.secret:change-this-secret-key-change-this-secret-key}") String secret,
+            @Value("${app.jwt.secret:}") String secret,
             @Value("${app.jwt.expiration-ms:3600000}") long expirationMillis
     ) {
+        if(secret==null||secret.length()<32||secret.startsWith("change-this-"))throw new IllegalStateException("Set a random JWT_SECRET of at least 32 characters.");
         this.users=users;
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMillis = expirationMillis;

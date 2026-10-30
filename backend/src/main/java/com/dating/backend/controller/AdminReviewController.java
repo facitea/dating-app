@@ -33,14 +33,14 @@ public class AdminReviewController {
     private final AdminReviewService adminReviewService;
 
     @GetMapping("/summary")
-    public AdminReviewSummaryResponse getSummary(@RequestHeader("X-Admin-Key") String adminKey) {
+    public AdminReviewSummaryResponse getSummary(@RequestHeader(value="X-Admin-Key",required=false) String adminKey) {
         adminReviewService.validateAdminKey(adminKey);
         return adminReviewService.getSummary();
     }
 
     @GetMapping
     public List<AdminReviewCandidateResponse> getCandidates(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @RequestParam(defaultValue = "PENDING_REVIEW") String status,
             @RequestParam(defaultValue = "false") boolean dueSoonOnly,
             @RequestParam(defaultValue = "") String q,
@@ -55,7 +55,7 @@ public class AdminReviewController {
     @GetMapping("/{userId}/history")
     public List<AdminReviewHistoryResponse> getHistories(
             @PathVariable Long userId,
-            @RequestHeader("X-Admin-Key") String adminKey
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey
     ) {
         adminReviewService.validateAdminKey(adminKey);
         return adminReviewService.getHistories(userId);
@@ -64,7 +64,7 @@ public class AdminReviewController {
     @PutMapping("/{userId}/memo")
     public MessageResponse updateMemo(
             @PathVariable Long userId,
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @Valid @RequestBody AdminMemoRequest request
     ) {
         adminReviewService.validateAdminKey(adminKey);
@@ -74,7 +74,7 @@ public class AdminReviewController {
     @PostMapping("/{userId}/approve")
     public AdminReviewDecisionResponse approve(
             @PathVariable Long userId,
-            @RequestHeader("X-Admin-Key") String adminKey
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey
     ) {
         adminReviewService.validateAdminKey(adminKey);
         return adminReviewService.approve(userId);
@@ -83,7 +83,7 @@ public class AdminReviewController {
     @PostMapping("/{userId}/reject")
     public AdminReviewDecisionResponse reject(
             @PathVariable Long userId,
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @Valid @RequestBody AdminRejectRequest request
     ) {
         adminReviewService.validateAdminKey(adminKey);

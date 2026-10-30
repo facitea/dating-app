@@ -23,7 +23,7 @@ public class AdminPhoneAuthController {
     private final AdminReviewService adminReviewService;
 
     @GetMapping("/logs")
-    public List<AdminPhoneVerificationLogResponse> getPhoneAuthLogs(@RequestHeader("X-Admin-Key") String adminKey) {
+    public List<AdminPhoneVerificationLogResponse> getPhoneAuthLogs(@RequestHeader(value="X-Admin-Key",required=false) String adminKey) {
         adminReviewService.validateAdminKey(adminKey);
         return phoneVerificationRepository.findTop50ByOrderByCreatedAtDesc().stream()
                 .map(AdminPhoneVerificationLogResponse::from)

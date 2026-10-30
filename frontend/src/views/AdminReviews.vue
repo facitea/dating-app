@@ -120,7 +120,7 @@
 
           <div class="image-list" v-if="candidate.images.length">
             <div v-for="image in candidate.images" :key="image.id" class="image-item">
-              <img :src="toAbsoluteImageUrl(image.imageUrl)" alt="profile review" />
+              <img v-private-src.admin="toAbsoluteImageUrl(image.imageUrl)" alt="profile review" />
               <span>{{ image.imageOrder }}번 사진{{ image.isMain ? ' · 대표' : '' }}</span>
             </div>
           </div>

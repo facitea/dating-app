@@ -29,6 +29,7 @@ public class ProfileImageService {
 
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     private final com.dating.backend.matching.ProfileModeration moderation;
+    private final com.dating.backend.matching.PrivateMediaService media;
     private final UserRepository userRepository;
     private final UserProfileImageRepository userProfileImageRepository;
     private final UserProfileRepository userProfileRepository;
@@ -49,6 +50,8 @@ public class ProfileImageService {
         User user = getUserByEmail(email);
         em.lock(user,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         validateImageOrder(request.getImageOrder());
+        media.validateOwnedUpload(user.getId(), request.getImageUrl());
+        if(em.createQuery("select count(i) from UserProfileImage i where i.userId=:u and i.imageUrl=:url and i.imageOrder<>:slot",Long.class).setParameter("u",user.getId()).setParameter("url",request.getImageUrl()).setParameter("slot",request.getImageOrder()).getSingleResult()>0)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"동일한 사진을 여러 칸에 등록할 수 없습니다.");
         moderation.beforeEdit(user);
 
         if (userProfileImageRepository.countByUserId(user.getId()) >= 6

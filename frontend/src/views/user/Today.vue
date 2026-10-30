@@ -42,7 +42,7 @@
                 <template v-if="card.profile">
                   <div class="person-photo"><button class="card-menu" aria-label="상대 메뉴" :tabindex="activeIndex === card.slot ? 0 : -1" @click="actions.open({id:card.profile.userId,nickname:card.profile.nickname},'report')">⋯</button>
                     <RouterLink class="photo-profile-link" :to="`/members/${card.profile.userId}`" :aria-label="`${card.profile.nickname} 프로필 보기`" :tabindex="activeIndex === card.slot ? 0 : -1">
-                    <img v-if="!failedImages[card.slot] && photoUrl(card.profile.imageUrl)" :src="photoUrl(card.profile.imageUrl)"
+                    <img v-if="!failedImages[card.slot] && photoUrl(card.profile.imageUrl)" v-private-src="photoUrl(card.profile.imageUrl)"
                          :alt="`${card.profile.nickname}님의 프로필 사진`" draggable="false" @error="failedImages[card.slot] = true" />
                     <span v-else class="photo-placeholder" aria-label="사진을 불러올 수 없음">♡</span></RouterLink>
                     <div class="person-title"><h2><RouterLink :to="`/members/${card.profile.userId}`" :tabindex="activeIndex === card.slot ? 0 : -1">{{ card.profile.nickname }} <span>{{ card.profile.age }}</span></RouterLink></h2><p>{{ card.profile.region }}</p></div>

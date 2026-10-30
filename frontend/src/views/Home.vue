@@ -51,7 +51,7 @@
           <div class="profile-frame">
             <img
               v-if="mainImage"
-              :src="resolveImageUrl(mainImage.imageUrl)"
+              v-private-src="resolveImageUrl(mainImage.imageUrl)"
               :alt="`${profile.nickname} 대표 사진`"
             />
             <div v-else class="profile-placeholder">

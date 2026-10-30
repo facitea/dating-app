@@ -8,9 +8,16 @@
     </div>
 
     <div class="welcome-actions">
+      <button class="google-enter" :disabled="googleBusy" @click="googleLogin">{{ googleBusy ? '구글 인증 중…' : 'Google로 계속하기' }}</button>
+      <p v-if="googleMessage" class="google-error" role="alert">{{ googleMessage }}</p>
       <button class="welcome-enter" @click="openLogin">이메일로 로그인 <span aria-hidden="true">↗</span></button>
       <RouterLink class="welcome-signup" to="/signup">회원가입</RouterLink>
     </div>
+    <dialog ref="linkDialog" class="login-sheet">
+      <header class="sheet-header"><h2>기존 계정 연결</h2><button type="button" aria-label="닫기" @click="linkDialog.close()">×</button></header>
+      <p>{{ pendingGoogle?.email }} 계정이 있어요. 기존 비밀번호로 확인하면 구글 로그인도 사용할 수 있어요.</p>
+      <form class="login-fields" @submit.prevent="linkGoogle"><label for="link-password">기존 계정 비밀번호</label><input id="link-password" v-model="linkPassword" type="password" autocomplete="current-password" required/><button class="login-submit" :disabled="googleBusy">연결하고 로그인</button><p v-if="googleMessage" role="alert">{{ googleMessage }}</p><RouterLink to="/reset-password">비밀번호 찾기</RouterLink></form>
+    </dialog>
     <dialog ref="loginDialog" class="login-sheet" @click="closeOnBackdrop">
       <header class="sheet-header"><h2>로그인</h2><button type="button" aria-label="닫기" @click="loginDialog.close()">×</button></header>
       <form class="login-fields" aria-label="이메일 로그인" @submit.prevent="login">
@@ -32,7 +39,7 @@
       </nav>
     </dialog>
   </section>
-</template>
+<RouterLink to="/legal" style="position:relative;display:block;text-align:center;font-size:11px;color:#8c786c;padding:12px">이용약관 · 개인정보 안내</RouterLink></template>
 
 <script setup>
 import { nextTick, reactive, ref } from "vue";
@@ -40,6 +47,15 @@ import { RouterLink, useRouter } from "vue-router";
 import { authClient } from "../../auth-client";
 import { clearToken, setAuthTokens } from "../../utils/auth";
 
+import { beginGoogle, exchangeGoogle, clearGoogle, pendingGoogle, googleError } from '../../auth-client/googleAuth';
+const googleBusy=ref(false),googleMessage=ref(''),linkDialog=ref(),linkPassword=ref('');
+async function handleGoogle(data) {
+  if(data.state==='SIGNUP_REQUIRED'){router.push('/signup?provider=google');return;}
+  if(data.state==='LINK_REQUIRED'){linkPassword.value='';if(!linkDialog.value.open)linkDialog.value.showModal();return;}
+  if(data.auth){moveAfterLogin(data.auth);await clearGoogle();}
+}
+async function googleLogin(){if(googleBusy.value)return;googleBusy.value=true;googleMessage.value='';try{await handleGoogle(await beginGoogle());}catch(e){googleMessage.value=googleError(e);}finally{googleBusy.value=false;}}
+async function linkGoogle(){if(googleBusy.value)return;googleBusy.value=true;googleMessage.value='';try{await handleGoogle(await exchangeGoogle(linkPassword.value));}catch(e){googleMessage.value=googleError(e);}finally{googleBusy.value=false;linkPassword.value='';}}
 const router = useRouter();
 const loading = ref(false);
 const loginDialog = ref(null);
@@ -157,6 +173,9 @@ const login = async () => {
 </script>
 
 <style scoped>
+.google-enter{min-height:56px;border:1px solid #dadce0;border-radius:999px;background:white;color:#1f1f1f;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:6px}
+.google-enter:disabled{opacity:.65;cursor:wait}.google-error{font-size:13px;line-height:1.6;color:#712c20;margin:4px 0 10px}
+
 .welcome-page {
   position: relative; isolation: isolate; min-height: 100vh; min-height: 100dvh;
   display: flex; flex-direction: column; padding: max(24px, env(safe-area-inset-top)) 26px max(20px, env(safe-area-inset-bottom));

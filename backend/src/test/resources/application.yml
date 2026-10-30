@@ -20,7 +20,7 @@ app:
   credits:
     test-topup: true
   jwt:
-    secret: change-this-secret-key-change-this-secret-key
+    secret: test-only-random-secret-do-not-use-for-production-0123456789
     expiration-ms: 3600000
   admin:
     review-key: test-admin-review-key

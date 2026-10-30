@@ -51,3 +51,5 @@ application-local.properties
 .DS_Store
 Thumbs.db
 .idea/
+
+*firebase-adminsdk*.json

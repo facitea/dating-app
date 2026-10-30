@@ -31,14 +31,14 @@ public class AdminSupportInquiryController {
     private final AdminSupportInquiryService adminSupportInquiryService;
 
     @GetMapping("/summary")
-    public AdminSupportInquirySummaryResponse getSummary(@RequestHeader("X-Admin-Key") String adminKey) {
+    public AdminSupportInquirySummaryResponse getSummary(@RequestHeader(value="X-Admin-Key",required=false) String adminKey) {
         adminReviewService.validateAdminKey(adminKey);
         return adminSupportInquiryService.getSummary();
     }
 
     @GetMapping("/inquiries")
     public List<AdminSupportInquiryResponse> getInquiries(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @RequestParam(defaultValue = "OPEN") String status,
             @RequestParam(defaultValue = "") String q
     ) {
@@ -49,7 +49,7 @@ public class AdminSupportInquiryController {
     @PutMapping("/inquiries/{inquiryId}")
     public MessageResponse updateInquiry(
             @PathVariable Long inquiryId,
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @Valid @RequestBody AdminSupportInquiryUpdateRequest request
     ) {
         adminReviewService.validateAdminKey(adminKey);

@@ -33,7 +33,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String header = request.getHeader("Authorization");
 
-        if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
+        if (!request.getRequestURI().startsWith("/api/admin/") && StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             String token = header.substring(7);
 
             if (jwtUtil.validateToken(token)) {

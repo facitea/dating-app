@@ -24,6 +24,7 @@ repositories {
 }
 
 dependencies {
+ implementation 'com.google.firebase:firebase-admin:9.11.0'
  implementation('nl.martijndwars:web-push:5.1.2') { exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on' }
  implementation 'org.apache.httpcomponents:httpclient:4.5.14'
  implementation 'org.bitbucket.b_c:jose4j:0.9.6'

@@ -26,6 +26,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class AuthVerificationService {
+    @org.springframework.beans.factory.annotation.Value("${app.auth.dev-verification:false}") private boolean devVerification;
+    private void requireVerificationDelivery(){if(!devVerification)throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"이메일 인증 발송 연동을 준비 중입니다. Google 로그인을 이용하거나 고객센터로 문의해 주세요.");}
+
 
     private static final int CODE_TTL_MINUTES = 5;
     private static final int MAX_ATTEMPTS = 5;
@@ -37,6 +40,7 @@ public class AuthVerificationService {
 
     @Transactional
     public AuthVerificationStartResponse requestCode(AuthVerificationRequest request) {
+        requireVerificationDelivery();
         String targetType = normalizeType(request.getTargetType());
         String purpose = normalizePurpose(request.getPurpose());
         String targetValue = normalizeTargetValue(targetType, request.getTargetValue());
@@ -64,8 +68,9 @@ public class AuthVerificationService {
         );
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public AuthVerificationConfirmResponse confirmCode(AuthVerificationConfirmRequest request) {
+        requireVerificationDelivery();
         String targetType = normalizeType(request.getTargetType());
         String purpose = normalizePurpose(request.getPurpose());
         String targetValue = normalizeTargetValue(targetType, request.getTargetValue());

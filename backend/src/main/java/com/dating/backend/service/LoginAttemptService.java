@@ -37,7 +37,7 @@ public class LoginAttemptService {
                 });
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void recordFailure(String loginId) {
         String normalizedLoginId = normalizeLoginId(loginId);
         LoginAttempt attempt = loginAttemptRepository.findByLoginId(normalizedLoginId)

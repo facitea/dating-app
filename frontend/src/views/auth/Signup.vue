@@ -27,13 +27,15 @@
           <input
             ref="emailInput"
             v-model.trim="form.email"
+            :readonly="googleSignup"
             type="email"
             placeholder="you@example.com"
             required
           />
         </label>
 
-        <div class="verification-box">
+        <p v-if="googleSignup" class="message notice">구글 이메일 인증 완료</p>
+        <div v-if="!googleSignup" class="verification-box">
           <button class="ghost-button" type="button" :disabled="loading || verificationLoading" @click="requestEmailVerification">
             {{ verificationLoading ? "인증번호 발급 중..." : "이메일 인증번호 받기" }}
           </button>
@@ -55,7 +57,7 @@
           <p v-if="verificationMessage" class="message notice">{{ verificationMessage }}</p>
         </div>
 
-        <label>
+        <label v-if="!googleSignup">
           <span>비밀번호</span>
           <input
             ref="passwordInput"
@@ -211,6 +213,7 @@
 </template>
 
 <script setup>
+import { pendingGoogle, googleToken, clearGoogle } from '../../auth-client/googleAuth';
 import TermsText from "../../components/TermsText.vue";
 import "../../components/social.css";
 import { computed, nextTick, reactive, ref, watch } from "vue";
@@ -246,6 +249,7 @@ const regionOptions = {
 };
 
 const router = useRouter();
+const googleSignup=ref(Boolean(pendingGoogle.value));
 const loading = ref(false);
 const verificationLoading = ref(false);
 const errorMessage = ref("");
@@ -266,7 +270,7 @@ const selectedRegionDistrict = ref("");
 
 const form = reactive({
   nickname: "",
-  email: "",
+  email: googleSignup.value ? pendingGoogle.value.email : "",
   emailVerificationToken: "",
   password: "",
   birthDate: "",
@@ -281,7 +285,7 @@ const form = reactive({
   drinkingStatus: "NONE",
   religion: "NONE",
   agreedToTerms: false,
-  agreedToPrivacy:false,adultConfirmed:false,marketingConsent:false,termsVersion:"2026-10-21-draft",
+  agreedToPrivacy:false,adultConfirmed:false,marketingConsent:false,termsVersion:"2026-10-29-test",
   website: "",
   formStartedAt: Date.now(),
 });
@@ -344,14 +348,14 @@ const validateForm = () => {
     };
   }
 
-  if (!form.emailVerificationToken) {
+  if (!googleSignup.value && !form.emailVerificationToken) {
     return {
       field: "emailCode",
       message: "이메일 인증을 먼저 완료해주세요.",
     };
   }
 
-  if (form.password.length < 8) {
+  if (!googleSignup.value && form.password.length < 8) {
     return {
       field: "password",
       message: "비밀번호는 8자 이상으로 입력해주세요.",
@@ -469,10 +473,12 @@ const signup = async () => {
       return;
     }
 
-    const data = await authClient.signup(form);
+    const payload=googleSignup.value?{...form,password:null,emailVerificationToken:null,firebaseIdToken:await googleToken()}:form;
+    const data = await authClient.signup(payload);
     resetSignupApprovalNotice();
     setAuthTokens(data);
     router.push("/review-pending");
+    if(googleSignup.value)await clearGoogle();
   } catch (error) {
     const message = error.response?.data?.message || "회원가입에 실패했습니다. 입력값을 다시 확인해주세요.";
     errorMessage.value = message;

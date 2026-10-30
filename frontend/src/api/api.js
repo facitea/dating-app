@@ -1,4 +1,5 @@
 import axios from "axios";
+import {adminCsrf,clearAdmin} from "../adminSession";
 import { clearToken, getToken, setAuthTokens } from "../utils/auth";
 
 function resolveApiBaseUrl() {
@@ -26,6 +27,7 @@ const refreshApi = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = getToken();
+  if(config.url?.startsWith("/admin/") && adminCsrf.value) config.headers["X-Admin-CSRF"]=adminCsrf.value;
   const isAuthRequest = config.url?.startsWith("/auth/");
 
   if (token && !isAuthRequest && !config.url?.startsWith("/admin/")) {
@@ -39,6 +41,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    if(error.response?.status===401 && originalRequest?.url?.startsWith("/admin/"))clearAdmin();
     const status = error.response?.status;
     const canTryRefresh = status === 401
       && originalRequest

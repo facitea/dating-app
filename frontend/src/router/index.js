@@ -25,6 +25,7 @@ import Photos from '../views/user/Photos.vue';
 import Settings from '../views/user/Settings.vue';
 import AdminConsole from '../views/admin/AdminConsole.vue';
 const routes = [
+  { path: "/legal", component: () => import("../views/Legal.vue") },
   { path: "/", component: Login, meta: { guestOnly: true } },
   { path: "/admin/reviews", redirect: "/admin/signup" },
   { path: "/admin/safety", redirect: "/admin/support" },

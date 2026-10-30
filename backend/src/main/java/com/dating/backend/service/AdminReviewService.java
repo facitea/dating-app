@@ -45,14 +45,8 @@ public class AdminReviewService {
     private final AdminReviewHistoryRepository adminReviewHistoryRepository;
     private final AccountReviewPolicyService accountReviewPolicyService;
 
-    @Value("${app.admin.review-key:change-admin-review-key}")
-    private String adminReviewKey;
 
-    public void validateAdminKey(String adminKey) {
-        if (adminKey == null || !adminReviewKey.equals(adminKey)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "운영자 인증 키가 올바르지 않습니다.");
-        }
-    }
+    public void validateAdminKey(String ignored) { com.dating.backend.admin.AdminService.requireSession(); }
 
     @Transactional(readOnly = true)
     public AdminReviewSummaryResponse getSummary() {

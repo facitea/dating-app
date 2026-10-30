@@ -147,9 +147,12 @@ class SocialServiceTest {
   em.persist(UserProfileImage.builder().userId(a.getId()).imageUrl("/uploads/my-second.jpg").imageOrder(1).isMain(false).build());assertEquals(2,social.profile(a.getEmail(),b.getId()).images().size());
  }
  @Test void sixPhotoLimitOwnershipAndMainReplacement(){
-  for(int i=1;i<=5;i++){var req=new com.dating.backend.dto.UserProfileImageRequest();req.setImageOrder(i);req.setImageUrl("/uploads/"+i+".jpg");req.setIsMain(false);photos.saveMyImage(a.getEmail(),req);}
-  assertEquals(6,photos.getMyImages(a.getEmail()).size());var extra=new com.dating.backend.dto.UserProfileImageRequest();extra.setImageOrder(6);extra.setImageUrl("/uploads/6.jpg");extra.setIsMain(false);assertThrows(ResponseStatusException.class,()->photos.saveMyImage(a.getEmail(),extra));
+  for(int i=1;i<=5;i++){var req=new com.dating.backend.dto.UserProfileImageRequest();req.setImageOrder(i);req.setImageUrl(ownedPhoto(a.getId()));req.setIsMain(false);photos.saveMyImage(a.getEmail(),req);}
+  assertEquals(6,photos.getMyImages(a.getEmail()).size());var extra=new com.dating.backend.dto.UserProfileImageRequest();extra.setImageOrder(6);extra.setImageUrl(ownedPhoto(a.getId()));extra.setIsMain(false);assertThrows(ResponseStatusException.class,()->photos.saveMyImage(a.getEmail(),extra));
   var id=em.createQuery("select i.id from UserProfileImage i where i.userId=:u and i.imageOrder=1",Long.class).setParameter("u",a.getId()).getSingleResult();photos.main(a.getEmail(),id);assertThrows(ResponseStatusException.class,()->photos.delete(b.getEmail(),id));photos.delete(a.getEmail(),id);
   assertEquals(1,em.createQuery("select count(i) from UserProfileImage i where i.userId=:u and i.isMain=true",Long.class).setParameter("u",a.getId()).getSingleResult());photos.saveMyImage(a.getEmail(),extra);assertEquals(6,photos.getMyImages(a.getEmail()).size());
  }
+ String ownedPhoto(Long owner){try{var dir=java.nio.file.Path.of("build/test-uploads/profile");java.nio.file.Files.createDirectories(dir);String name="user-"+owner+"-"+UUID.randomUUID()+".jpg";var file=dir.resolve(name);java.nio.file.Files.write(file,new byte[]{1});testFiles.add(file);return "/uploads/profile/"+name;}catch(Exception e){throw new RuntimeException(e);}}
+ java.util.List<java.nio.file.Path> testFiles=new java.util.ArrayList<>();
+ @AfterEach void removeTestFiles()throws Exception{for(var file:testFiles)java.nio.file.Files.deleteIfExists(file);}
 }

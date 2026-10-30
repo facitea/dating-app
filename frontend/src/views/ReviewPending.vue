@@ -86,7 +86,7 @@
 
       <div class="image-list" v-if="images.length">
         <div v-for="image in images" :key="image.id" class="image-item">
-          <img :src="toAbsoluteImageUrl(image.imageUrl)" alt="uploaded profile" />
+          <img v-private-src="toAbsoluteImageUrl(image.imageUrl)" alt="uploaded profile" />
           <strong>{{ image.imageOrder }}번 사진{{ image.isMain ? ' · 대표' : '' }}</strong>
           <p>{{ image.imageUrl }}</p>
         </div>

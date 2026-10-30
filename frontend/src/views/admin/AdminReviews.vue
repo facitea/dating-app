@@ -404,7 +404,7 @@
 
         <div class="image-grid" v-if="selectedCandidate.images.length">
           <article v-for="image in selectedCandidate.images" :key="image.id" class="image-card">
-            <img :src="toAbsoluteImageUrl(image.imageUrl)" alt="review image" />
+            <img v-private-src.admin="toAbsoluteImageUrl(image.imageUrl)" alt="review image" />
             <span>{{ image.imageOrder }}번 사진{{ image.isMain ? " · 대표" : "" }}</span>
           </article>
         </div>

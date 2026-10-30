@@ -36,7 +36,7 @@ public class SocialService {
         var images=em.createQuery("select i.imageUrl from UserProfileImage i where i.userId=:id order by i.isMain desc,i.imageOrder",String.class).setParameter("id",id).getResultList();
         var mineApproved=em.find(ApprovedProfile.class,me.getId());
         int ownCount=em.createQuery("select count(i) from UserProfileImage i where i.userId=:u",Long.class).setParameter("u",me.getId()).getSingleResult().intValue();
-        if(mineApproved!=null)ownCount=mineApproved.getImages().size();
+        if(mineApproved!=null)ownCount=Math.min(ownCount,mineApproved.getImages().size());
         var approved=em.find(ApprovedProfile.class,id);
         if(approved!=null)return new PublicProfile(person(id),approved.getImages().stream().limit(ownCount).toList(),approved.getJob(),approved.getMbti(),approved.getIntroduction(),approved.getPersonality(),approved.getIdealType(),approved.getSmoking(),approved.getDrinking(),approved.getReligion(),approved.getImages().size(),ownCount);
         return new PublicProfile(person(id),images.stream().limit(ownCount).toList(),p.getJob(),p.getMbti(),p.getIntroduction(),p.getPersonality(),p.getIdealType(),p.getSmokingStatus(),p.getDrinkingStatus(),p.getReligion(),images.size(),ownCount);

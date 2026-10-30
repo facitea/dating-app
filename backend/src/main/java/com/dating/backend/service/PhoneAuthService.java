@@ -52,10 +52,7 @@ public class PhoneAuthService {
      */
     @Transactional
     public PhoneVerificationStartResponse requestCode(PhoneVerificationRequest request) {
-        String phone = normalizePhone(request.getPhone());
-        blockedIdentityService.validateSignupAllowed(null, phone);
-        validateRequestRateLimit(phone);
-        return issueVerificationCode(phone);
+        throw new ResponseStatusException(HttpStatus.GONE,"전화번호 로그인은 제공하지 않습니다. 가입 후 프로필에서 전화번호를 인증해 주세요.");
     }
 
     /**
@@ -77,27 +74,13 @@ public class PhoneAuthService {
      */
     @Transactional
     public AuthResponse verifyAndLogin(PhoneVerificationConfirmRequest request) {
-        String phone = normalizePhone(request.getPhone());
-        completeVerification(phone, request.getCode());
-
-        User user = userRepository.findByPhone(phone).orElseGet(() -> createPhoneUser(phone));
-        blockedIdentityService.validateLoginAllowed(user);
-
-        if ("SUSPENDED".equals(user.getStatus()) || "DELETED".equals(user.getStatus()) || "HIGH_RISK".equals(user.getFraudReviewStatus())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "계정 상태로 인해 로그인할 수 없습니다.");
-        }
-
-        return new AuthResponse(
-                jwtUtil.createToken(user.getEmail()),
-                refreshTokenService.issueRefreshToken(user),
-                UserResponse.from(user)
-        );
+        throw new ResponseStatusException(HttpStatus.GONE,"전화번호 로그인은 제공하지 않습니다. 가입 후 프로필에서 전화번호를 인증해 주세요.");
     }
 
     /**
      * 로그인한 사용자의 전화번호를 인증 후 계정에 저장합니다.
      */
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public MessageResponse verifyAndAttachPhone(String email, PhoneVerificationConfirmRequest request) {
         User user = getUserByEmail(email);
         String phone = normalizePhone(request.getPhone());

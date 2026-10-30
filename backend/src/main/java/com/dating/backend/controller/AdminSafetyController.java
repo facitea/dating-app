@@ -35,14 +35,14 @@ public class AdminSafetyController {
     private final BlockedIdentityService blockedIdentityService;
 
     @GetMapping("/summary")
-    public ScamMonitorSummaryResponse getSummary(@RequestHeader("X-Admin-Key") String adminKey) {
+    public ScamMonitorSummaryResponse getSummary(@RequestHeader(value="X-Admin-Key",required=false) String adminKey) {
         safetyService.validateAdminKey(adminKey);
         return safetyService.getSummary();
     }
 
     @GetMapping("/users")
     public List<ScamMonitorUserResponse> getRiskUsers(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @RequestParam(defaultValue = "WATCH") String riskStatus,
             @RequestParam(defaultValue = "") String q
     ) {
@@ -52,7 +52,7 @@ public class AdminSafetyController {
 
     @GetMapping("/users/{userId}/logs")
     public List<FraudRiskLogResponse> getRiskLogs(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @PathVariable Long userId
     ) {
         safetyService.validateAdminKey(adminKey);
@@ -61,7 +61,7 @@ public class AdminSafetyController {
 
     @PutMapping("/users/{userId}/review")
     public MessageResponse reviewRiskUser(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @PathVariable Long userId,
             @Valid @RequestBody AdminRiskActionRequest request
     ) {
@@ -71,7 +71,7 @@ public class AdminSafetyController {
 
     @GetMapping("/reports")
     public List<AdminUserReportResponse> getReports(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @RequestParam(defaultValue = "OPEN") String status
     ) {
         safetyService.validateAdminKey(adminKey);
@@ -80,7 +80,7 @@ public class AdminSafetyController {
 
     @GetMapping("/blocked-identities")
     public List<BlockedIdentityResponse> getBlockedIdentities(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @RequestParam(defaultValue = "") String q,
             @RequestParam(defaultValue = "ALL") String identityType
     ) {
@@ -90,7 +90,7 @@ public class AdminSafetyController {
 
     @PutMapping("/blocked-identities/{blockedIdentityId}/release")
     public MessageResponse releaseBlockedIdentity(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @PathVariable Long blockedIdentityId
     ) {
         safetyService.validateAdminKey(adminKey);
@@ -100,7 +100,7 @@ public class AdminSafetyController {
 
     @PutMapping("/reports/{reportId}/resolve")
     public MessageResponse resolveReport(
-            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestHeader(value="X-Admin-Key",required=false) String adminKey,
             @PathVariable Long reportId,
             @Valid @RequestBody ResolveReportRequest request
     ) {

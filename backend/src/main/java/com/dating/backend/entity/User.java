@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class User {
+    @Column(unique=true,length=128) private String firebaseUid;
     private String sanctionType;
     private java.time.Instant suspendedUntil;
     private String statusBeforeSanction;

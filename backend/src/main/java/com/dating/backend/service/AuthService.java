@@ -33,9 +33,13 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    @org.springframework.beans.factory.annotation.Value("${app.auth.dev-verification:false}") private boolean devVerification;
+    private void requireVerificationDelivery(){if(!devVerification)throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"이메일 인증 발송 연동을 준비 중입니다. Google 로그인을 이용하거나 고객센터로 문의해 주세요.");}
+
 
     private static final String PROVIDER_LOCAL = "LOCAL";
 
+    private final GoogleIdentityService googleIdentity;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final UserVerificationRepository userVerificationRepository;
@@ -52,9 +56,13 @@ public class AuthService {
 
     @Transactional
     public AuthResponse signup(SignupRequest request) {
-        if(!request.isAgreedToTerms()||!request.isAgreedToPrivacy()||!request.isAdultConfirmed()||!"2026-10-21-draft".equals(request.getTermsVersion()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"필수 약관과 최신 버전 동의를 확인해 주세요.");
+        if(!request.isAgreedToTerms()||!request.isAgreedToPrivacy()||!request.isAdultConfirmed()||!"2026-10-29-test".equals(request.getTermsVersion()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"필수 약관과 최신 버전 동의를 확인해 주세요.");
         validateAdultSignup(request);
-        authVerificationService.validateSignupEmailVerified(request.getEmail(), request.getEmailVerificationToken());
+        var google=request.getFirebaseIdToken()==null||request.getFirebaseIdToken().isBlank()?null:googleIdentity.verify(request.getFirebaseIdToken());
+        if(google!=null) {
+            request.setEmail(google.email());
+            if(userRepository.findByFirebaseUid(google.uid()).isPresent())throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 가입된 구글 계정입니다. 로그인해 주세요.");
+        } else authVerificationService.validateSignupEmailVerified(request.getEmail(), request.getEmailVerificationToken());
         blockedIdentityService.validateSignupAllowed(request.getEmail(), null);
 
         User existingUser = userRepository.findByEmail(request.getEmail()).orElse(null);
@@ -70,6 +78,7 @@ public class AuthService {
         }
 
         if (existingUser != null) {
+            if(google!=null||existingUser.getFirebaseUid()!=null)throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 가입된 이메일입니다. 기존 계정으로 로그인 후 연결해 주세요.");
             if("SUSPENDED".equals(existingUser.getStatus())||existingUser.getSanctionType()!=null)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"정지된 계정은 다시 가입할 수 없습니다.");
             if (hasLocalPassword(existingUser)) {
                 throw new ResponseStatusException(
@@ -97,11 +106,12 @@ public class AuthService {
         User user = User.builder()
                 .email(request.getEmail())
                 .nickname(request.getNickname())
-                .provider(PROVIDER_LOCAL)
+                .provider(google==null?PROVIDER_LOCAL:"GOOGLE")
+                .firebaseUid(google==null?null:google.uid())
                 .status("PENDING_REVIEW")
                 .reviewComment("회원 가입 심사 대기 중입니다. 3일 내에 사진 등록과 프로필 입력을 완료해 주세요.")
                 .reviewDeadlineAt(accountReviewPolicyService.createSignupDeadline())
-                .password(passwordEncoder.encode(request.getPassword()))
+                .password(google==null?passwordEncoder.encode(request.getPassword()):null)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -109,6 +119,29 @@ public class AuthService {
         upsertVerification(savedUser, request);
         fraudDetectionService.evaluateUserProfile(savedUser.getId());
         consent(savedUser,request);return buildAuthResponse(savedUser);
+    }
+
+    public record GoogleResult(String state,String email,AuthResponse auth) {}
+    @Transactional
+    public GoogleResult googleLogin(String idToken,String existingPassword) {
+        var identity=googleIdentity.verify(idToken);
+        var user=userRepository.findByFirebaseUid(identity.uid()).orElse(null);
+        if(user==null) {
+            user=userRepository.findByEmail(identity.email()).orElse(null);
+            if(user==null) {blockedIdentityService.validateSignupAllowed(identity.email(),null);return new GoogleResult("SIGNUP_REQUIRED",identity.email(),null);}
+            if(existingPassword==null||existingPassword.isBlank())return new GoogleResult("LINK_REQUIRED",identity.email(),null);
+            // Prove control of the existing account before linking; keep its profile and credits.
+            if(user.getFirebaseUid()!=null)throw new ResponseStatusException(HttpStatus.CONFLICT,"다른 구글 계정이 연결되어 있습니다.");
+            var request=new AuthRequest();request.setEmail(user.getEmail());request.setPassword(existingPassword);
+            var auth=login(request);
+            em.lock(user,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            if(user.getFirebaseUid()!=null&&!user.getFirebaseUid().equals(identity.uid()))throw new ResponseStatusException(HttpStatus.CONFLICT,"다른 구글 계정이 연결되어 있습니다.");
+            user.setFirebaseUid(identity.uid());
+            return new GoogleResult("AUTHENTICATED",user.getEmail(),auth);
+        }
+        sanctions.expire(user.getId());blockedIdentityService.validateLoginAllowed(user);
+        if("SUSPENDED".equals(user.getStatus())||"DELETED".equals(user.getStatus())||"HIGH_RISK".equals(user.getFraudReviewStatus()))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"이용이 제한된 계정입니다. 고객센터에 문의해 주세요.");
+        return new GoogleResult("AUTHENTICATED",user.getEmail(),buildAuthResponse(user));
     }
 
     private void consent(User u,SignupRequest r){var c=new com.dating.backend.matching.TermsConsent();c.setUserId(u.getId());c.setVersion(r.getTermsVersion());c.setTerms(r.isAgreedToTerms());c.setPrivacy(r.isAgreedToPrivacy());c.setAdult(r.isAdultConfirmed());c.setMarketing(r.isMarketingConsent());em.persist(c);}
@@ -158,6 +191,7 @@ public class AuthService {
 
     @Transactional
     public PasswordResetRequestResponse requestPasswordReset(ForgotPasswordRequest request) {
+        requireVerificationDelivery();
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new FocusableResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -186,6 +220,7 @@ public class AuthService {
 
     @Transactional
     public MessageResponse confirmPasswordReset(PasswordResetConfirmRequest request) {
+        requireVerificationDelivery();
         User user = userRepository.findByResetPasswordToken(request.getToken())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "유효하지 않은 비밀번호 재설정 요청입니다."));
 
@@ -194,6 +229,8 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호 재설정 링크가 만료되었습니다. 다시 요청해 주세요.");
         }
 
+        user.setSessionVersion(user.getSessionVersion()+1);
+        em.createQuery("update RefreshToken t set t.revoked=true where t.userId=:id").setParameter("id",user.getId()).executeUpdate();
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setProvider(PROVIDER_LOCAL);
         clearResetToken(user);

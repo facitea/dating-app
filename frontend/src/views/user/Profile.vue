@@ -109,6 +109,7 @@ const profile = ref(null);
 const imageCount = ref(0);
 
 const providerLabel = computed(() => {
+  if (profile.value?.provider === "GOOGLE") return "Google";
   if (profile.value?.provider === "PHONE") return "전화번호";
   return "자체 이메일";
 });
