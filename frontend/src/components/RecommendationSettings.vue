@@ -32,6 +32,7 @@
             <p v-if="legacyRegion" class="muted">기존 조건은 {{ legacyRegion }}입니다. 저장하면 선택한 반경으로 바뀝니다.</p>
           </div>
           <label v-for="field in fields" :key="field.key">{{ field.label }}<select v-model="form[field.key]"><option value="ANY">상관없음</option><option v-for="o in field.options" :key="o[0]" :value="o[0]">{{ o[1] }}</option></select></label>
+          <section class="trait-conditions" aria-labelledby="trait-conditions-title"><h3 id="trait-conditions-title">어떤 사람을 만나고 싶은가</h3><TraitSelector v-model="form.traitPreferences" mode="preferences" /></section>
         </fieldset>
       </template>
       <p v-if="error" role="alert">{{ error }}</p>
@@ -43,6 +44,8 @@
 </template>
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import TraitSelector from './TraitSelector.vue';
+import {serializeTraits} from './traits';
 import api from '../api/api';
 import './social.css';
 const props=defineProps({initial:Boolean});
@@ -88,11 +91,12 @@ async function save(){
   if(form.value.birthYearMin!=null&&form.value.birthYearMax!=null&&form.value.birthYearMin>form.value.birthYearMax){error.value='시작 출생연도는 마지막 출생연도보다 앞선 연도를 선택해 주세요.';return;}
   if(radius.value!==505&&!radiusAvailable.value){error.value='프로필의 거주 지역을 먼저 선택해 주세요.';return;}
   busy.value=true;
-  try{const {data}=await api.put('/social/preferences',{...form.value,ageMin:null,ageMax:null,regionScope:'ANY',radiusKm:radius.value===505?null:radius.value});at.value=data.effectiveAt;legacyRegion.value='';saved.value=true;const wasFirst=firstSetup.value;firstSetup.value=false;emit('saved',data);if(wasFirst&&!props.initial)modal.value.close();}
+  try{const {data}=await api.put('/social/preferences',{...form.value,traitPreferences:serializeTraits(form.value.traitPreferences),ageMin:null,ageMax:null,regionScope:'ANY',radiusKm:radius.value===505?null:radius.value});at.value=data.effectiveAt;legacyRegion.value='';saved.value=true;const wasFirst=firstSetup.value;firstSetup.value=false;emit('saved',data);if(wasFirst&&!props.initial)modal.value.close();}
   catch(e){error.value=failure(e,'추천조건을 저장하지 못했어요.');}finally{busy.value=false;}
 }
 </script>
 <style scoped>
+.trait-conditions{margin:18px 0;padding:14px 0 0;border-top:1px solid #edd4c5}.trait-conditions>h3{font-size:14px;margin:0 0 16px}
 .initial-preferences { padding: 12px 0 28px; color: #50382c; }
 .initial-preferences h2 { margin: 0 0 12px; }
 .initial-preferences .muted { color: #806b60; font-size: 13px; line-height: 1.7; }

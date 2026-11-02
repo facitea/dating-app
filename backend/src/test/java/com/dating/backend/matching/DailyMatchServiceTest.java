@@ -103,10 +103,49 @@ class DailyMatchServiceTest {
         service.today(owner.getEmail()); service.reveal(owner.getEmail(), day, 0);
         assertEquals(404, assertThrows(ResponseStatusException.class, () -> service.reveal(other.getEmail(), day, 0)).getStatusCode().value());
         other.setStatus("SUSPENDED");
-        var card = service.today(owner.getEmail()).cards().get(0);
-        assertEquals("UNAVAILABLE", card.state()); assertNull(card.profile());
+        var deck = service.today(owner.getEmail());
+        assertTrue(deck.cards().stream().noneMatch(c->c.slot()==0));
+        assertTrue(deck.cards().stream().noneMatch(c->"UNAVAILABLE".equals(c.state())));
     }
 
+    @Test void recommendationsNeverRepeatEvenAfterSeveralDaysAndExcludeMatches() {
+        var old=person("historical","FEMALE","ACTIVE");
+        var historical=new DailyMatchCard();historical.setOwnerId(owner.getId());historical.setCycleDay(day.minusDays(40));historical.setSlot(0);historical.setCandidateId(old.getId());em.persist(historical);
+        var matched=person("matched","FEMALE","ACTIVE");var room=new ChatRoom();room.setLowId(Math.min(owner.getId(),matched.getId()));room.setHighId(Math.max(owner.getId(),matched.getId()));room.setMatched(true);em.persist(room);
+        var fresh=person("fresh","FEMALE","ACTIVE");service.today(owner.getEmail());
+        assertEquals(List.of(fresh.getId()),saved(day).stream().map(DailyMatchCard::getCandidateId).filter(Objects::nonNull).toList());
+        time("2026-10-25T08:00:00");assertTrue(service.today(owner.getEmail()).cards().stream().filter(c->c.slot()<3).allMatch(c->c.state().equals("EMPTY")));
+    }
+    @Test void reciprocalFitCountsOnlySpecifiedCriteriaAndAnyIsNotOneHundredPercent() {
+        var mine=UserProfile.builder().region("서울 강남구").mbti("INTJ").smokingStatus("SMOKER").build();
+        var theirs=UserProfile.builder().region("서울 강남구").build();var v=UserVerification.builder().birthDate(LocalDate.of(1995,1,1)).build();
+        assertNull(preferences.fit(null,theirs,mine,v,day).percent());
+        var pref=new MatchPreference();assertNull(preferences.fit(pref,theirs,mine,v,day).percent());
+        pref.setMbti("INTJ");pref.setSmoking("NON_SMOKER");
+        var fit=preferences.fit(pref,theirs,mine,v,day);assertEquals(50,fit.percent());assertEquals(2,fit.criteria());
+        mine.setSmokingStatus("NON_SMOKER");assertEquals(100,preferences.fit(pref,theirs,mine,v,day).percent());
+    }
+    @Test void reciprocalFitRanksCompatibleCandidatesWithoutUsingPendingConditions() {
+        var compatible=person("compatible","FEMALE","ACTIVE");
+        var distant=em.createQuery("select p from UserProfile p where p.userId=:u",UserProfile.class).setParameter("u",compatible.getId()).getSingleResult();distant.setRegion("부산 해운대구");
+        preferences.save(compatible.getEmail(),new MatchPreferenceService.Conditions(25,35,"ANY","ANY","ANY","ANY","ANY"));
+        preferences.save(compatible.getEmail(),new MatchPreferenceService.Conditions(60,70,"ANY","ANY","ANY","ANY","ANY"));
+        for(int i=0;i<5;i++)person("near"+i,"FEMALE","ACTIVE");
+        service.today(owner.getEmail());var card=service.reveal(owner.getEmail(),day,0);
+        assertEquals(compatible.getId(),card.profile().userId());assertEquals(100,card.profile().reciprocalFit().percent());
+        assertEquals(1,card.profile().reciprocalFit().criteria());
+    }
+    @Test void matchedCardRemainsButRestrictedCardsDisappearWithoutChangingOtherSlots() {
+        sixCandidates();service.today(owner.getEmail());
+        var first=service.reveal(owner.getEmail(),day,0);var second=service.reveal(owner.getEmail(),day,1);
+        var room=new ChatRoom();room.setLowId(Math.min(owner.getId(),first.profile().userId()));room.setHighId(Math.max(owner.getId(),first.profile().userId()));room.setMatched(true);em.persist(room);
+        var matched=service.today(owner.getEmail()).cards().stream().filter(c->c.slot()==0).findFirst().orElseThrow();
+        assertEquals("MATCHED",matched.state());assertEquals(first.profile().userId(),matched.profile().userId());
+        var blocked=new MemberVisibility();blocked.setOwnerId(first.profile().userId());blocked.setTargetId(owner.getId());blocked.setBlocked(true);em.persist(blocked);
+        var deck=service.today(owner.getEmail());assertTrue(deck.cards().stream().noneMatch(c->c.slot()==0));
+        assertEquals(second,deck.cards().stream().filter(c->c.slot()==1).findFirst().orElseThrow());
+        assertEquals(second,service.reveal(owner.getEmail(),day,1));
+    }
     void removeSetup() {
         em.createQuery("delete from MatchPreference p where p.ownerId=:id").setParameter("id",owner.getId()).executeUpdate();
     }
@@ -137,7 +176,7 @@ class DailyMatchServiceTest {
         removeSetup();
         preferences.save(owner.getEmail(),new MatchPreferenceService.Conditions(null,null,"ANY","INTJ","ANY","ANY","ANY"));
         var deck=service.today(owner.getEmail());
-        assertEquals(opened,deck.cards().get(0));
+        assertEquals(opened.slot(),deck.cards().get(0).slot()); assertEquals(opened.state(),deck.cards().get(0).state()); assertEquals(opened.profile().userId(),deck.cards().get(0).profile().userId()); assertEquals(0,deck.cards().get(0).profile().myFit().percent());
         assertEquals("EMPTY",deck.cards().get(1).state());assertEquals("EMPTY",deck.cards().get(2).state());
     }
     @Test void explicitAnyIsACompletedSetupIncludingBeforeEight() {

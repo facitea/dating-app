@@ -47,6 +47,7 @@ public class UpdateMyProfileRequest {
 
     // 성격
     private String personality;
+    @Size(max=30000) private String traitsJson;
     // 이상형
     private String idealType;
     // 자기소개

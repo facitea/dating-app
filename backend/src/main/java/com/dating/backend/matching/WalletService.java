@@ -13,7 +13,7 @@ import jakarta.persistence.*;import lombok.RequiredArgsConstructor;import org.sp
   var u=inbox.user(email);em.lock(u,LockModeType.PESSIMISTIC_WRITE);String key="TEST_TOPUP:"+r.requestId();
   var existing=em.createQuery("select e from CreditEntry e where e.userId=:u and e.referenceKey=:k",CreditEntry.class).setParameter("u",u.getId()).setParameter("k",key).getResultStream().findFirst().orElse(null);
   if(existing!=null){if(existing.getAmount()!=r.amount())throw new ResponseStatusException(HttpStatus.CONFLICT);return get(email);}
-  var w=em.find(CreditWallet.class,u.getId());if(w==null){w=new CreditWallet();w.setUserId(u.getId());em.persist(w);}if(w.getBalance()>100000-r.amount())throw new ResponseStatusException(HttpStatus.CONFLICT,"테스트 잔액 한도에 도달했습니다.");
+  var w=em.find(CreditWallet.class,u.getId(),LockModeType.PESSIMISTIC_WRITE);if(w==null){w=new CreditWallet();w.setUserId(u.getId());em.persist(w);}if(w.getBalance()>100000-r.amount())throw new ResponseStatusException(HttpStatus.CONFLICT,"테스트 잔액 한도에 도달했습니다.");
   w.setBalance(w.getBalance()+r.amount());var entry=new CreditEntry();entry.setUserId(u.getId());entry.setAmount(r.amount());entry.setReferenceKey(key);em.persist(entry);
   inbox.add(u.getId(),key,"테스트 크레딧 충전 완료",r.amount()+"크레딧이 충전되었습니다. 실제 결제는 발생하지 않았습니다.","/credits");return get(email);
  }

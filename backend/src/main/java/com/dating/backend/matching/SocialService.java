@@ -15,21 +15,22 @@ public class SocialService {
     private final EntityManager em;
     private final InboxService inbox;
     private final DailyMatchSchedule schedule;
+    private final ChatRequestService requests;
     @Value("${app.credits.direct-chat-cost:10}") private int directCost;
     public record Person(Long id,String nickname,int age,String region,String imageUrl) {}
     public record Connection(Person person,Long roomId,boolean matched,Instant createdAt,String eventKey) {
         public Connection(Person person,Long roomId,boolean matched,Instant createdAt) { this(person,roomId,matched,createdAt,null); }
     }
     public record Overview(List<Connection> received,List<Connection> sent,List<Connection> matched) {}
-    public record Room(Long id,Person person,boolean matched,String lastMessage,Instant updatedAt,long unread) {}
+    public record Room(Long id,Person person,boolean matched,String lastMessage,Instant updatedAt,long unread,ChatRequestService.Status request) {}
     public record Message(Long id,Long senderId,String text,Instant createdAt,String clientId,boolean mine) {}
-    public record Messages(Long roomId,Person person,List<Message> messages,boolean hasOlder,long peerReadThrough,boolean matched) {}
+    public record Messages(Long roomId,Person person,List<Message> messages,boolean hasOlder,long peerReadThrough,boolean matched,ChatRequestService.Status request) {}
     public record Quote(int balance,int cost,Long roomId) {}
     public record SendRequest(String text,String clientId) {}
     public record DirectRequest(Long targetId,String text,String clientId,Integer expectedCost) {}
     public record OpenResult(Long roomId,int charged,int balance) {}
 
-    public record PublicProfile(Person person,List<String> images,String job,String mbti,String introduction,String personality,String idealType,String smoking,String drinking,String religion,int totalImages,int ownImageCount) {}
+    public record PublicProfile(Person person,List<String> images,String job,String mbti,String introduction,String personality,String idealType,String smoking,String drinking,String religion,int totalImages,int ownImageCount,String traitsJson) {}
     @Transactional(readOnly=true) public PublicProfile profile(String email,Long id) {
         var me=user(email); requireAvailable(me.getId(),id); requireKnown(me.getId(),id);
         var p=em.createQuery("select p from UserProfile p where p.userId=:id",UserProfile.class).setParameter("id",id).getResultStream().findFirst().orElseThrow(()->error(HttpStatus.NOT_FOUND,"프로필을 찾을 수 없습니다."));
@@ -38,8 +39,8 @@ public class SocialService {
         int ownCount=em.createQuery("select count(i) from UserProfileImage i where i.userId=:u",Long.class).setParameter("u",me.getId()).getSingleResult().intValue();
         if(mineApproved!=null)ownCount=Math.min(ownCount,mineApproved.getImages().size());
         var approved=em.find(ApprovedProfile.class,id);
-        if(approved!=null)return new PublicProfile(person(id),approved.getImages().stream().limit(ownCount).toList(),approved.getJob(),approved.getMbti(),approved.getIntroduction(),approved.getPersonality(),approved.getIdealType(),approved.getSmoking(),approved.getDrinking(),approved.getReligion(),approved.getImages().size(),ownCount);
-        return new PublicProfile(person(id),images.stream().limit(ownCount).toList(),p.getJob(),p.getMbti(),p.getIntroduction(),p.getPersonality(),p.getIdealType(),p.getSmokingStatus(),p.getDrinkingStatus(),p.getReligion(),images.size(),ownCount);
+        if(approved!=null)return new PublicProfile(person(id),approved.getImages().stream().limit(ownCount).toList(),approved.getJob(),approved.getMbti(),approved.getIntroduction(),approved.getPersonality(),approved.getIdealType(),approved.getSmoking(),approved.getDrinking(),approved.getReligion(),approved.getImages().size(),ownCount,approved.getTraitsJson());
+        return new PublicProfile(person(id),images.stream().limit(ownCount).toList(),p.getJob(),p.getMbti(),p.getIntroduction(),p.getPersonality(),p.getIdealType(),p.getSmokingStatus(),p.getDrinkingStatus(),p.getReligion(),images.size(),ownCount,p.getTraitsJson());
     }
     @Transactional(readOnly=true) public List<Person> blocks(String email){var me=user(email);return em.createQuery("select v.targetId from MemberVisibility v where v.ownerId=:u and v.blocked=true",Long.class).setParameter("u",me.getId()).getResultList().stream().map(this::person).toList();}
     @Transactional public void unblock(String email,Long id){var me=user(email);lockPair(me.getId(),id);var v=visibility(me.getId(),id,false);if(v!=null&&v.isBlocked()){var target=em.find(User.class,id);long active=em.createQuery("select count(v) from MemberVisibility v where v.targetId=:id and v.blocked=true",Long.class).setParameter("id",id).getSingleResult();target.setTotalBlockCount(Math.max(target.getTotalBlockCount(),active));v.setBlocked(false);}}
@@ -77,6 +78,7 @@ public class SocialService {
             if(room==null) room=createRoom(me.getId(),otherId);
             else em.refresh(room,LockModeType.PESSIMISTIC_WRITE);
             room.setMatched(true);
+            requests.matched(room);
             inbox.add(me.getId(),"MATCH:"+room.getId(),"새로운 매칭이 성사됐어요","대화방에서 인사를 건네보세요.","/chats/"+room.getId());
             inbox.add(otherId,"MATCH:"+room.getId(),"새로운 매칭이 성사됐어요","대화방에서 인사를 건네보세요.","/chats/"+room.getId());
         }
@@ -115,11 +117,13 @@ public class SocialService {
         validateMessage(new SendRequest(request.text(),request.clientId()));
         var me=user(email); lockPair(me.getId(),request.targetId()); requireAvailable(me.getId(),request.targetId()); requireKnown(me.getId(),request.targetId());
         var room=findRoom(me.getId(),request.targetId());
-        var wallet=em.find(CreditWallet.class,me.getId()); int balance=wallet==null?0:wallet.getBalance(); int charged=0;
+        if(room!=null)em.lock(room,LockModeType.PESSIMISTIC_WRITE);
+        var wallet=em.find(CreditWallet.class,me.getId(),LockModeType.PESSIMISTIC_WRITE); int balance=wallet==null?0:wallet.getBalance(); int charged=0;
         if(room==null) {
             if(request.expectedCost()==null||request.expectedCost()!=directCost) throw error(HttpStatus.CONFLICT,"크레딧 비용을 다시 확인해 주세요.");
             if(balance<directCost) throw error(HttpStatus.CONFLICT,"크레딧이 부족합니다. 충전 기능은 준비 중입니다.");
             room=createRoom(me.getId(),request.targetId());
+            requests.create(room,me.getId(),request.targetId(),directCost);
             charged=directCost; balance-=charged; wallet.setBalance(balance);
             var entry=new CreditEntry(); entry.setUserId(me.getId()); entry.setAmount(-charged); entry.setReferenceKey("DIRECT_CHAT:"+room.getId()); em.persist(entry);
         } else em.lock(room,LockModeType.PESSIMISTIC_WRITE);
@@ -135,12 +139,13 @@ public class SocialService {
             long read=r.getLowId().equals(me.getId())?r.getReadLow():r.getReadHigh();
             long unread=em.createQuery("select count(m) from ChatMessage m where m.roomId=:room and m.id>:read and m.senderId<>:me",Long.class)
                     .setParameter("room",r.getId()).setParameter("read",read).setParameter("me",me.getId()).getSingleResult();
-            result.add(new Room(r.getId(),person(other),r.isMatched(),r.getLastMessage(),r.getUpdatedAt(),unread));
+            result.add(new Room(r.getId(),person(other),r.isMatched(),r.getLastMessage(),r.getUpdatedAt(),unread,requests.status(r.getId(),me.getId())));
         }
         return result;
     }
     @Transactional public Messages messages(String email,Long roomId,long after,long before) {
         var me=user(email); var room=authorizedRoom(roomId,me.getId());
+        requests.expire(room);
         if(after<0||before<0||after>0&&before>0) throw error(HttpStatus.BAD_REQUEST,"잘못된 메시지 위치입니다.");
         var visibility=visibility(me.getId(),other(room,me.getId()),false);
         long hiddenThrough=visibility==null?0:visibility.getChatHiddenThrough();
@@ -154,7 +159,10 @@ public class SocialService {
         }
         boolean older=!messages.isEmpty()&&em.createQuery("select count(m) from ChatMessage m where m.roomId=:room and m.id>:hidden and m.id<:first",Long.class)
                 .setParameter("room",roomId).setParameter("hidden",hiddenThrough).setParameter("first",messages.get(0).getId()).getSingleResult()>0;
-        return new Messages(roomId,person(other(room,me.getId())),messages.stream().map(m->dto(m,me.getId())).toList(),older,room.getLowId().equals(me.getId())?room.getReadHigh():room.getReadLow(),room.isMatched());
+        return new Messages(roomId,person(other(room,me.getId())),messages.stream().map(m->dto(m,me.getId())).toList(),older,room.getLowId().equals(me.getId())?room.getReadHigh():room.getReadLow(),room.isMatched(),requests.status(roomId,me.getId()));
+    }
+    @Transactional public ChatRequestService.Status decide(String email,Long roomId,boolean accept) {
+        var me=user(email);var room=authorizedRoom(roomId,me.getId());return requests.decide(room,me.getId(),accept);
     }
     @Transactional public Message send(String email,Long roomId,SendRequest request) {
         validateMessage(request); var me=user(email); return dto(append(authorizedRoom(roomId,me.getId()),me.getId(),request),me.getId());
@@ -163,6 +171,7 @@ public class SocialService {
         var existing=em.createQuery("select m from ChatMessage m where m.roomId=:room and m.senderId=:sender and m.clientId=:client",ChatMessage.class)
                 .setParameter("room",room.getId()).setParameter("sender",sender).setParameter("client",request.clientId()).getResultStream().findFirst().orElse(null);
         if(existing!=null) return existing;
+        requests.requireSendAllowed(room,sender);
         var m=new ChatMessage(); m.setRoomId(room.getId()); m.setSenderId(sender); m.setClientId(request.clientId()); m.setBody(request.text().trim()); em.persist(m); em.flush();
         inbox.add(other(room,sender),"CHAT:"+m.getId(),"새 메시지가 도착했어요","채팅방에서 메시지를 확인해 주세요.","/chats/"+room.getId());
         room.setLastMessageId(m.getId()); room.setLastMessage(m.getBody()); room.setUpdatedAt(m.getCreatedAt());

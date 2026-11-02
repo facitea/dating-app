@@ -56,6 +56,7 @@ public class MyProfileResponse {
     private String drinkingStatus;
     // 종교
     private String religion;
+    private String traitsJson;
 
     public static MyProfileResponse from(User user, UserProfile profile, UserVerification verification) {
         return new MyProfileResponse(
@@ -78,7 +79,8 @@ public class MyProfileResponse {
                 profile.getIntroduction(),
                 profile.getSmokingStatus(),
                 profile.getDrinkingStatus(),
-                profile.getReligion()
+                profile.getReligion(),
+                profile.getTraitsJson()
         );
     }
 }

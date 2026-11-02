@@ -79,9 +79,9 @@
           </div>
         </dl>
 
+        <TraitSummary :json="profile.traitsJson"/>
         <div class="text-blocks">
           <p><strong>내 성격</strong><br />{{ profile.personality || "미입력" }}</p>
-          <p><strong>이상형</strong><br />{{ profile.idealType || "미입력" }}</p>
           <p><strong>자기소개</strong><br />{{ profile.introduction || "미입력" }}</p>
         </div>
       </section>
@@ -98,6 +98,7 @@
 </template>
 
 <script setup>
+import TraitSummary from "../../components/TraitSummary.vue";
 
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";

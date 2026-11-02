@@ -19,4 +19,5 @@ public class MatchPreference {
     private String smoking = "ANY";
     private String drinking = "ANY";
     private String religion = "ANY";
+    @Column(columnDefinition="TEXT") private String traitPreferences;
 }

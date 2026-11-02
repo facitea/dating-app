@@ -29,8 +29,6 @@ public class AccountReviewPolicyService {
         return hasText(profile.getRegion())
                 && hasText(profile.getJob())
                 && hasText(profile.getMbti())
-                && hasText(profile.getPersonality())
-                && hasText(profile.getIdealType())
                 && hasText(profile.getIntroduction())
                 && hasText(profile.getSmokingStatus())
                 && hasText(profile.getDrinkingStatus())

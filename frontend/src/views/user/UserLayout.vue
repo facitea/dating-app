@@ -9,7 +9,7 @@
     </div>
 
     <template v-else>
-      <div v-if="eligible" class="app-topbar"><RouterLink to="/notifications" :aria-label="`알림 모아보기${inboxUnread?' · 새 알림 '+inboxUnread+'개':''}`"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9 21h6"/></svg><span v-if="inboxUnread">{{inboxUnread>99?'99+':inboxUnread}}</span></RouterLink></div><main class="user-app-main">
+      <div v-if="eligible" class="app-topbar" :class="{'inline-topbar':true,'compact-profile-bar':route.path.startsWith('/members/')}"><RouterLink to="/notifications" :aria-label="`알림 모아보기${inboxUnread?' · 새 알림 '+inboxUnread+'개':''}`"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9 21h6"/></svg><span v-if="inboxUnread">{{inboxUnread>99?'99+':inboxUnread}}</span></RouterLink></div><main class="user-app-main">
         <router-view />
       </main>
 
@@ -165,4 +165,13 @@ onMounted(async () => {
   filter: drop-shadow(0 4px 8px rgba(245, 191, 164, 0.22));
 }
 .nav-label { font-size: 11px; font-weight: 700; line-height: 1.1; text-align: center; }
-.app-topbar{max-width:480px;margin:auto;display:flex;justify-content:flex-end;height:42px;padding:0 16px;box-sizing:border-box}.app-topbar a{position:relative;display:grid;place-items:center;width:42px;color:#92553f}.app-topbar svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7}.app-topbar span{position:absolute;top:3px;right:0;background:#db4940;color:#fff;font-size:9px;min-width:14px;height:14px;border-radius:10px;text-align:center}</style>
+.app-topbar{max-width:480px;margin:auto;display:flex;justify-content:flex-end;height:42px;padding:0 16px;box-sizing:border-box}.app-topbar a{position:relative;display:grid;place-items:center;width:42px;color:#92553f}.app-topbar svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7}.app-topbar span{position:absolute;top:3px;right:0;background:#db4940;color:#fff;font-size:9px;min-width:14px;height:14px;border-radius:10px;text-align:center}
+.app-topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:95;pointer-events:none}.app-topbar a{pointer-events:auto;height:42px;background:#fff9f4;border-radius:50%}.app-topbar.inline-topbar{height:0;top:max(20px,env(safe-area-inset-top))}.inline-topbar+.user-app-main :deep(.match-heading){padding-right:50px;min-height:42px;box-sizing:border-box}
+
+.app-topbar.compact-profile-bar{top:max(8px,env(safe-area-inset-top))}
+.inline-topbar+.user-app-main :deep(.social-page>h1),.inline-topbar+.user-app-main :deep(.utility-header),.inline-topbar+.user-app-main :deep(.conversation>header),.inline-topbar+.user-app-main :deep(.support-screen>header){padding-right:54px;min-height:42px;box-sizing:border-box}
+.inline-topbar+.user-app-main :deep(.public-profile>.profile-header){padding-right:66px}
+.inline-topbar+.user-app-main :deep(.profile-shell>header.page-card){padding-right:66px!important}
+.inline-topbar+.user-app-main :deep(.profile-shortcuts){padding-right:62px!important}
+.inline-topbar+.user-app-main :deep(.conversation){height:calc(100dvh - 84px - env(safe-area-inset-bottom))}
+</style>

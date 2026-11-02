@@ -54,3 +54,6 @@ tasks.named('test') {
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
 }
+
+// One catalog is shared by the client and server validation.
+tasks.named('processResources') { from('../frontend/src/data') { include 'traitCatalog.json' } }

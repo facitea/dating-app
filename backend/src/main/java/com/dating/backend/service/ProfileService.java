@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 public class ProfileService {
 
     private final com.dating.backend.matching.ProfileModeration moderation;
+    private final com.dating.backend.matching.TraitService traits;
+    private final com.dating.backend.matching.MatchPreferenceService preferences;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final UserVerificationRepository userVerificationRepository;
@@ -55,6 +57,11 @@ public class ProfileService {
         profile.setRegion(request.getRegion());
         profile.setJob(emptyToNull(request.getJob()));
         profile.setMbti(emptyToNull(request.getMbti()));
+        if(request.getTraitsJson()!=null) {
+            String normalized=traits.normalize(request.getTraitsJson());
+            if(!traits.wishes(profile.getTraitsJson()).equals(traits.wishes(normalized)))preferences.scheduleTraits(user.getId(),traits.wishes(normalized));
+            profile.setTraitsJson(normalized);
+        }
         profile.setPersonality(emptyToNull(request.getPersonality()));
         profile.setIdealType(emptyToNull(request.getIdealType()));
         profile.setIntroduction(emptyToNull(request.getIntroduction()));
@@ -117,7 +124,8 @@ public class ProfileService {
                 profile != null ? defaultString(profile.getIntroduction()) : "",
                 profile != null ? defaultString(profile.getSmokingStatus()) : "NON_SMOKER",
                 profile != null ? defaultString(profile.getDrinkingStatus()) : "NONE",
-                profile != null ? defaultString(profile.getReligion()) : "NONE"
+                profile != null ? defaultString(profile.getReligion()) : "NONE",
+                profile != null ? profile.getTraitsJson() : null
         );
     }
 

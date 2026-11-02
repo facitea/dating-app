@@ -1,7 +1,7 @@
 <template>
   <dialog ref="modal" class="social-dialog">
     <form @submit.prevent="send"><header><h2>메시지 보내기</h2><button type="button" aria-label="닫기" :disabled="busy" @click="modal.close()">×</button></header>
-      <template v-if="quote"><p>{{ quote.cost }}크레딧으로 대화방을 열어요. 이후 대화는 무료입니다.</p><p class="muted">보유 {{ quote.balance }}크레딧</p><label>첫 메시지<textarea v-model="text" maxlength="2000" required placeholder="메시지를 입력하세요" :disabled="busy" /></label><button class="primary" :disabled="busy || !text.trim() || quote.balance < quote.cost">{{ busy ? '보내는 중…' : `${quote.cost}크레딧 · 보내기` }}</button><p v-if="quote.balance < quote.cost">크레딧이 부족합니다. 충전 기능은 준비 중입니다.</p></template>
+      <template v-if="quote"><p>{{ quote.cost }}크레딧으로 대화를 요청해요. 수락 후 대화는 무료입니다.</p><p class="muted">상대가 거절하거나 72시간 안에 수락하지 않으면 전액 자동 반환됩니다. 수락 전에는 첫 메시지만 보낼 수 있어요.</p><p class="muted">보유 {{ quote.balance }}크레딧</p><label>첫 메시지<textarea v-model="text" maxlength="2000" required placeholder="메시지를 입력하세요" :disabled="busy" /></label><button class="primary" :disabled="busy || !text.trim() || quote.balance < quote.cost">{{ busy ? '보내는 중…' : `${quote.cost}크레딧 · 보내기` }}</button><p v-if="quote.balance < quote.cost">크레딧이 부족합니다. 프로필의 크레딧 메뉴에서 충전해 주세요.</p></template>
       <p v-else-if="!error">불러오는 중…</p><p v-if="error" role="alert">{{ error }}</p>
     </form>
   </dialog>

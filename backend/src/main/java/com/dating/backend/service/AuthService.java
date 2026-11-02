@@ -41,6 +41,7 @@ public class AuthService {
 
     private final GoogleIdentityService googleIdentity;
     private final UserRepository userRepository;
+    private final com.dating.backend.matching.TraitService traits;
     private final UserProfileRepository userProfileRepository;
     private final UserVerificationRepository userVerificationRepository;
     private final PasswordEncoder passwordEncoder;
@@ -56,7 +57,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse signup(SignupRequest request) {
-        if(!request.isAgreedToTerms()||!request.isAgreedToPrivacy()||!request.isAdultConfirmed()||!"2026-10-29-test".equals(request.getTermsVersion()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"필수 약관과 최신 버전 동의를 확인해 주세요.");
+        if(!request.isAgreedToTerms()||!request.isAgreedToPrivacy()||!request.isAdultConfirmed()||!"2026-11-02-traits-test".equals(request.getTermsVersion()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"필수 약관과 최신 버전 동의를 확인해 주세요.");
         validateAdultSignup(request);
         var google=request.getFirebaseIdToken()==null||request.getFirebaseIdToken().isBlank()?null:googleIdentity.verify(request.getFirebaseIdToken());
         if(google!=null) {
@@ -248,6 +249,7 @@ public class AuthService {
         profile.setMbti(emptyToNull(request.getMbti()));
         profile.setPersonality(emptyToNull(request.getPersonality()));
         profile.setIdealType(emptyToNull(request.getIdealType()));
+        if(request.getTraitsJson()!=null)profile.setTraitsJson(traits.normalize(request.getTraitsJson()));
         profile.setIntroduction(emptyToNull(request.getIntroduction()));
         profile.setSmokingStatus(request.getSmokingStatus());
         profile.setDrinkingStatus(request.getDrinkingStatus());

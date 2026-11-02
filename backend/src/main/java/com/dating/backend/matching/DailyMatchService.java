@@ -21,7 +21,7 @@ public class DailyMatchService {
     private final SocialService social;
 
     public record Profile(Long userId, String nickname, int age, String region, String job,
-                          String mbti, String introduction, String imageUrl) {}
+                          String mbti, String introduction, String imageUrl, MatchPreferenceService.Fit reciprocalFit, MatchPreferenceService.Fit myFit) {}
     public record Card(int slot, Instant unlockAt, String state, String reaction, Profile profile) {}
     public record Deck(LocalDate cycleDay, Instant serverNow, Instant resetAt, Instant nextRefreshAt,
                        List<Card> cards,String eventKey) {}
@@ -41,7 +41,7 @@ public class DailyMatchService {
         if(!window.now().isBefore(window.evening())) generateRound(owner,window,cards,3);
         return new Deck(window.day(), window.now(), window.resetAt(),
                 window.now().isBefore(window.evening()) ? window.evening() : window.resetAt(),
-                cards.stream().map(card -> view(card, window)).toList(),NotificationService.todayKey(window));
+                cards.stream().map(card -> view(card, window)).filter(card -> !"UNAVAILABLE".equals(card.state())).toList(),NotificationService.todayKey(window));
     }
 
     @Transactional
@@ -85,12 +85,12 @@ public class DailyMatchService {
         var existing=cards(u.getId(),window.day()).stream().filter(c->request.requestId().equals(c.getPurchaseRequestId())).findFirst();if(existing.isPresent())return view(existing.get(),window);
         today(email);
         var wallet=em.find(CreditWallet.class,u.getId(),LockModeType.PESSIMISTIC_WRITE);if(wallet==null||wallet.getBalance()<10)throw error(HttpStatus.CONFLICT,"크레딧이 부족합니다. 충전 후 다시 시도해 주세요.");
-        var excluded=cards(u.getId(),window.day()).stream().map(DailyMatchCard::getCandidateId).filter(Objects::nonNull).collect(Collectors.toSet());
-        cards(u.getId(),window.day().minusDays(1)).stream().map(DailyMatchCard::getCandidateId).filter(Objects::nonNull).forEach(excluded::add);
+        var excluded=history(u.getId());
         var pref=preferences.active(u.getId(),window.now().isBefore(window.evening())?window.morning():window.evening());var mine=profile(u.getId());var verification=verification(u.getId());
         if(verification==null||verification.getBirthDate()==null)throw error(HttpStatus.CONFLICT,"프로필을 먼저 완성해 주세요.");
         var pool=new ArrayList<Candidate>();for(var other:em.createQuery("select u from User u where u.status='ACTIVE' and u.id<>:id",User.class).setParameter("id",u.getId()).getResultList()){if(excluded.contains(other.getId()))continue;var c=candidate(u.getId(),other.getId(),window.day());if(c!=null&&preferences.accepts(pref,mine,c.profile(),c.verification(),window.day()))pool.add(c);}
-        pool.sort(Comparator.<Candidate>comparingInt(c->score(mine,verification,c)).reversed().thenComparingInt(c->Objects.hash(u.getId(),window.day(),c.user().getId())));
+        var scores=new HashMap<Long,Integer>();for(var c:pool)scores.put(c.user().getId(),reciprocalScore(mine,verification,c,window,window.now().isBefore(window.evening())?window.morning():window.evening()));
+        pool.sort(Comparator.<Candidate>comparingInt(c->scores.get(c.user().getId())).reversed().thenComparingInt(c->Objects.hash(u.getId(),window.day(),c.user().getId())));
         if(pool.isEmpty())throw error(HttpStatus.CONFLICT,"조건에 맞는 추가 인연이 없습니다. 크레딧은 차감되지 않았습니다.");
         var card=new DailyMatchCard();card.setOwnerId(u.getId());card.setCycleDay(window.day());card.setSlot(Math.max(5,cards(u.getId(),window.day()).stream().mapToInt(DailyMatchCard::getSlot).max().orElse(5))+1);card.setPurchaseRequestId(request.requestId());card.setCandidateId(pool.get(0).user().getId());card.setRevealedAt(window.now());em.persist(card);
         wallet.setBalance(wallet.getBalance()-10);var entry=new CreditEntry();entry.setUserId(u.getId());entry.setAmount(-10);entry.setReferenceKey("EXTRA:"+window.day()+":"+request.requestId());em.persist(entry);em.flush();return view(card,window);
@@ -131,7 +131,7 @@ public class DailyMatchService {
         marker.setPreferenceId(pref==null?null:pref.getId()); em.persist(marker);
         // Preserve existing opened cards during migration; discard only unrevealed future reservations.
         if(pref==null && first==0 && cards.stream().limit(3).anyMatch(c->c.getCandidateId()!=null)) return;
-        var excluded=cards(owner.getId(),window.day().minusDays(1)).stream().map(DailyMatchCard::getCandidateId).filter(Objects::nonNull).collect(Collectors.toSet());
+        var excluded=history(owner.getId());
         for(var c:cards) if(c.getSlot()<first || c.getRevealedAt()!=null || c.getSlot()>=6) if(c.getCandidateId()!=null) excluded.add(c.getCandidateId());
         var mine=profile(owner.getId()); var verification=verification(owner.getId());
         List<Candidate> pool=new ArrayList<>();
@@ -141,7 +141,8 @@ public class DailyMatchService {
                 var c=candidate(owner.getId(),u.getId(),window.day());
                 if(c!=null && preferences.accepts(pref,mine,c.profile(),c.verification(),window.day())) pool.add(c);
             }
-            pool.sort(Comparator.<Candidate>comparingInt(c->score(mine,verification,c)).reversed().thenComparingInt(c->Objects.hash(owner.getId(),start,c.user().getId())));
+            var scores=new HashMap<Long,Integer>();for(var c:pool)scores.put(c.user().getId(),reciprocalScore(mine,verification,c,window,start));
+            pool.sort(Comparator.<Candidate>comparingInt(c->scores.get(c.user().getId())).reversed().thenComparingInt(c->Objects.hash(owner.getId(),start,c.user().getId())));
         }
         int index=0;
         for(var card:cards) if(card.getSlot()>=first&&card.getSlot()<first+3&&card.getRevealedAt()==null) {
@@ -149,6 +150,15 @@ public class DailyMatchService {
         }
     }
 
+    private Set<Long> history(Long owner) {
+        return new HashSet<>(em.createQuery("select distinct c.candidateId from DailyMatchCard c where c.ownerId=:owner and c.candidateId is not null",Long.class).setParameter("owner",owner).getResultList());
+    }
+    private int reciprocalScore(UserProfile mine,UserVerification verification,Candidate c,DailyMatchSchedule.Window w,Instant start) {
+        var fit=preferences.directional(c.user().getId(),verification.getUserId(),start,c.profile(),mine,verification,w.day());
+        var forward=preferences.directional(verification.getUserId(),c.user().getId(),start,mine,c.profile(),c.verification(),w.day());
+        // Explicit compatible preferences rank first; unspecified criteria have no compatibility evidence.
+        return ((fit.percent()==null?0:fit.percent())+(forward.percent()==null?0:forward.percent()))*1000+score(mine,verification,c);
+    }
     private int score(UserProfile mine, UserVerification verification, Candidate c) {
         int score = 0;
         if (mine != null && mine.getRegion() != null && c.profile().getRegion() != null) {
@@ -159,6 +169,9 @@ public class DailyMatchService {
     }
 
     private Candidate candidate(Long owner, Long id, LocalDate day) {
+        return candidate(owner,id,day,false);
+    }
+    private Candidate candidate(Long owner, Long id, LocalDate day, boolean existingCard) {
         var user = em.find(User.class, id);
         if (user == null || user.isResting() || "PENDING".equals(user.getProfileReviewStatus()) || "REJECTED".equals(user.getProfileReviewStatus()) || !"ACTIVE".equals(user.getStatus()) || owner.equals(id)
                 || !"NORMAL".equals(user.getFraudReviewStatus())) return null;
@@ -171,7 +184,7 @@ public class DailyMatchService {
         long reports = em.createQuery("select count(r) from UserReport r where (r.reporterUserId = :owner and r.reportedUserId = :other) or (r.reporterUserId = :other and r.reportedUserId = :owner)", Long.class)
                 .setParameter("owner", owner).setParameter("other", id).getSingleResult();
         if (reports > 0) return null;
-        if(em.createQuery("select count(r) from ChatRoom r where r.ended=true and r.lowId=:a and r.highId=:b",Long.class).setParameter("a",Math.min(owner,id)).setParameter("b",Math.max(owner,id)).getSingleResult()>0)return null;
+        if(em.createQuery("select count(r) from ChatRoom r where (r.ended=true or (r.matched=true and :existing=false)) and r.lowId=:a and r.highId=:b",Long.class).setParameter("existing",existingCard).setParameter("a",Math.min(owner,id)).setParameter("b",Math.max(owner,id)).getSingleResult()>0)return null;
         long blocks=em.createQuery("select count(v) from MemberVisibility v where v.blocked=true and ((v.ownerId=:owner and v.targetId=:other) or (v.ownerId=:other and v.targetId=:owner))",Long.class).setParameter("owner",owner).setParameter("other",id).getSingleResult();
         if(blocks>0)return null;
         var profile = profile(id);
@@ -184,14 +197,16 @@ public class DailyMatchService {
 
     private Card view(DailyMatchCard card, DailyMatchSchedule.Window window) {
         // Locked and unrevealed cards never serialize a candidate ID, photo or personal details.
+        var c = card.getCandidateId()==null?null:candidate(card.getOwnerId(), card.getCandidateId(), window.day(),true);
+        if (card.getCandidateId()!=null && c == null) return new Card(card.getSlot(), window.unlockAt(card.getSlot()), "UNAVAILABLE", null, null);
         if (!window.unlocked(card.getSlot())) return new Card(card.getSlot(), window.unlockAt(card.getSlot()), "LOCKED", null, null);
-        if (card.getCandidateId() == null) return new Card(card.getSlot(), window.unlockAt(card.getSlot()), "EMPTY", null, null);
-        var c = candidate(card.getOwnerId(), card.getCandidateId(), window.day());
-        if (c == null) return new Card(card.getSlot(), window.unlockAt(card.getSlot()), "UNAVAILABLE", null, null);
-        if (card.getRevealedAt() == null) return new Card(card.getSlot(), window.unlockAt(card.getSlot()), "HIDDEN", null, null);
+        if (c == null) return new Card(card.getSlot(), window.unlockAt(card.getSlot()), "EMPTY", null, null);
+        boolean matched=em.createQuery("select count(r) from ChatRoom r where r.matched=true and r.ended=false and r.lowId=:a and r.highId=:b",Long.class)
+            .setParameter("a",Math.min(card.getOwnerId(),card.getCandidateId())).setParameter("b",Math.max(card.getOwnerId(),card.getCandidateId())).getSingleResult()>0;
+        if (card.getRevealedAt() == null && !matched) return new Card(card.getSlot(), window.unlockAt(card.getSlot()), "HIDDEN", null, null);
         var publicProfile = new Profile(c.user().getId(), c.user().getNickname(), Period.between(c.verification().getBirthDate(), window.day()).getYears(),
-                c.profile().getRegion(), c.profile().getJob(), c.profile().getMbti(), c.profile().getIntroduction(), c.imageUrl());
-        return new Card(card.getSlot(), window.unlockAt(card.getSlot()), "OPEN", card.getReaction(), publicProfile);
+                c.profile().getRegion(), c.profile().getJob(), c.profile().getMbti(), c.profile().getIntroduction(), c.imageUrl(), preferences.directional(c.user().getId(),card.getOwnerId(),card.getSlot()>=6?card.getRevealedAt():window.unlockAt(card.getSlot()),c.profile(),profile(card.getOwnerId()),verification(card.getOwnerId()),window.day()), preferences.directional(card.getOwnerId(),c.user().getId(),card.getSlot()>=6?card.getRevealedAt():window.unlockAt(card.getSlot()),profile(card.getOwnerId()),c.profile(),c.verification(),window.day()));
+        return new Card(card.getSlot(), window.unlockAt(card.getSlot()), matched?"MATCHED":"OPEN", card.getReaction(), publicProfile);
     }
 
     private UserProfile profile(Long id) {

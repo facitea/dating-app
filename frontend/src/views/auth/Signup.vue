@@ -1,219 +1,37 @@
 <template>
-  <section class="auth-page">
-    <div class="auth-card">
-      <p class="eyebrow">Create Account</p>
-      <h1>회원가입</h1>
-      <p class="description">
-        기본 정보 입력 후 사진 심사 단계로 이동합니다. 가입 승인은 운영자 심사가
-        끝난 뒤 확정됩니다.
-      </p>
-
-      <form class="auth-form" @submit.prevent="signup">
-        <div class="section-title">기본 계정 정보</div>
-
-        <label>
-          <span>닉네임</span>
-          <input
-            ref="nicknameInput"
-            v-model.trim="form.nickname"
-            type="text"
-            placeholder="서비스에 표시될 이름"
-            required
-          />
-        </label>
-
-        <label>
-          <span>이메일</span>
-          <input
-            ref="emailInput"
-            v-model.trim="form.email"
-            :readonly="googleSignup"
-            type="email"
-            placeholder="you@example.com"
-            required
-          />
-        </label>
-
-        <p v-if="googleSignup" class="message notice">구글 이메일 인증 완료</p>
-        <div v-if="!googleSignup" class="verification-box">
-          <button class="ghost-button" type="button" :disabled="loading || verificationLoading" @click="requestEmailVerification">
-            {{ verificationLoading ? "인증번호 발급 중..." : "이메일 인증번호 받기" }}
-          </button>
-
-          <label>
-            <span>이메일 인증번호</span>
-            <input
-              ref="emailCodeInput"
-              v-model.trim="emailVerificationCode"
-              inputmode="numeric"
-              maxlength="6"
-              placeholder="서버 로그의 6자리 번호"
-            />
-          </label>
-
-          <button class="ghost-button" type="button" :disabled="loading || verificationLoading || !emailVerificationCode" @click="confirmEmailVerification">
-            {{ emailVerified ? "이메일 인증 완료" : "인증번호 확인" }}
-          </button>
-          <p v-if="verificationMessage" class="message notice">{{ verificationMessage }}</p>
-        </div>
-
-        <label v-if="!googleSignup">
-          <span>비밀번호</span>
-          <input
-            ref="passwordInput"
-            v-model="form.password"
-            type="password"
-            placeholder="8자 이상 입력"
-            required
-            minlength="8"
-          />
-        </label>
-
-        <div class="section-title">기본 프로필 정보</div>
-
-        <label>
-          <span>생년월일</span>
-          <input ref="birthDateInput" v-model="form.birthDate" type="date" required />
-        </label>
-
-        <label>
-          <span>성별</span>
-          <select ref="genderSelect" v-model="form.gender" required>
-            <option value="MALE">남성</option>
-            <option value="FEMALE">여성</option>
-          </select>
-        </label>
-
-        <div class="region-grid">
-          <label>
-            <span>거주 시/도</span>
-            <select ref="regionCitySelect" v-model="selectedRegionCity" @change="handleRegionCityChange" required>
-              <option value="">시/도 선택</option>
-              <option v-for="city in regionCities" :key="city" :value="city">{{ city }}</option>
-            </select>
-          </label>
-
-          <label>
-            <span>거주 구/군</span>
-            <select
-              ref="regionDistrictSelect"
-              v-model="selectedRegionDistrict"
-              @change="updateRegion"
-              :disabled="!selectedRegionCity"
-              required
-            >
-              <option value="">구/군 선택</option>
-              <option v-for="district in availableDistricts" :key="district" :value="district">
-                {{ district }}
-              </option>
-            </select>
-          </label>
-        </div>
-
-        <label>
-          <span>직업</span>
-          <input v-model.trim="form.job" type="text" placeholder="예: 개발자" />
-        </label>
-
-        <label>
-          <span>MBTI</span>
-          <select v-model="form.mbti">
-            <option value="">선택 안 함</option>
-            <option v-for="item in mbtiOptions" :key="item" :value="item">{{ item }}</option>
-          </select>
-        </label>
-
-        <label>
-          <span>흡연 여부</span>
-          <select v-model="form.smokingStatus" required>
-            <option value="NON_SMOKER">비흡연</option>
-            <option value="OCCASIONAL">가끔 흡연</option>
-            <option value="SMOKER">흡연</option>
-          </select>
-        </label>
-
-        <label>
-          <span>음주 여부</span>
-          <select v-model="form.drinkingStatus" required>
-            <option value="NONE">안 함</option>
-            <option value="SOMETIMES">가끔</option>
-            <option value="OFTEN">자주</option>
-          </select>
-        </label>
-
-        <label>
-          <span>종교</span>
-          <select v-model="form.religion" required>
-            <option value="NONE">없음</option>
-            <option value="CHRISTIAN">기독교</option>
-            <option value="CATHOLIC">천주교</option>
-            <option value="BUDDHIST">불교</option>
-            <option value="OTHER">기타</option>
-          </select>
-        </label>
-
-        <label>
-          <span>내 성격</span>
-          <textarea v-model.trim="form.personality" rows="3" placeholder="성격을 간단히 적어주세요."></textarea>
-        </label>
-
-        <label>
-          <span>이상형</span>
-          <textarea v-model.trim="form.idealType" rows="3" placeholder="어떤 분을 만나고 싶은지 적어주세요."></textarea>
-        </label>
-
-        <label>
-          <span>자기소개</span>
-          <textarea v-model.trim="form.introduction" rows="4" placeholder="첫인상에 보일 자기소개를 적어주세요."></textarea>
-        </label>
-
-        <section class="signup-consents" aria-labelledby="consents-title">
-          <h3 id="consents-title">약관 및 개인정보 동의</h3>
-          <details class="consent-document" open>
-            <summary>서비스 이용약관 <span>전문 보기</span></summary>
-            <div class="consent-body" tabindex="0" role="region" aria-label="서비스 이용약관 본문"><TermsText type="terms"/></div>
-          </details>
-          <label class="consent-check"><input ref="termsCheckbox" v-model="form.agreedToTerms" type="checkbox" required/><span><b>[필수]</b> 서비스 이용약관에 동의합니다.</span></label>
-          <details class="consent-document" open>
-            <summary>개인정보 수집·이용 안내 <span>전문 보기</span></summary>
-            <div class="consent-body" tabindex="0" role="region" aria-label="개인정보 수집 이용 안내 본문"><TermsText type="privacy"/></div>
-          </details>
-          <label class="consent-check"><input v-model="form.agreedToPrivacy" type="checkbox" required/><span><b>[필수]</b> 개인정보 수집·이용에 동의합니다.</span></label>
-          <label class="consent-check"><input v-model="form.adultConfirmed" type="checkbox" required/><span><b>[필수]</b> 만 19세 이상입니다.</span></label>
-          <label class="consent-check"><input v-model="form.marketingConsent" type="checkbox"/><span>[선택] 이벤트·마케팅 안내 수신</span></label>
-          <p class="consent-note">선택 항목에 동의하지 않아도 가입할 수 있습니다.</p>
-        </section>
-
-        <label class="honeypot-field" aria-hidden="true">
-          <span>웹사이트</span>
-          <input v-model="form.website" type="text" tabindex="-1" autocomplete="off" />
-        </label>
-
-        <button class="primary-button" :disabled="loading">
-          {{ loading ? "다음 단계 준비 중..." : "다음: 사진 업로드" }}
-        </button>
-      </form>
-
-      <p v-if="errorMessage" class="message error">{{ errorMessage }}</p>
-
-      <div class="policy-box">
-        <strong>가입 절차 안내</strong>
-        <p>1. 기본 정보 입력</p>
-        <p>2. 프로필 사진 업로드</p>
-        <p>3. 운영자 사진 심사 대기</p>
-        <p>4. 승인 알림 후 가입 완료</p>
-      </div>
-
-      <p class="helper-text">
-        이미 계정이 있나요?
-        <RouterLink to="/">로그인</RouterLink>
-      </p>
-    </div>
-  </section>
+ <section class="signup-wizard">
+  <form class="wizard-shell" novalidate @submit.prevent="advance">
+   <header class="wizard-header"><RouterLink to="/" aria-label="가입 나가기">‹</RouterLink><span>그럼우리</span><small>{{step+1}} / {{titles.length}}</small></header>
+   <div class="wizard-progress" role="progressbar" aria-label="가입 진행" :aria-valuenow="step+1" :aria-valuemax="titles.length" aria-valuemin="1"><span :style="{width:`${(step+1)/titles.length*100}%`}"/></div>
+   <div class="wizard-stage" ref="stepPanel">
+    <Transition :name="direction==='next'?'step-next':'step-back'" mode="out-in">
+     <section :key="step" class="wizard-step"><h1>{{titles[step]}}</h1>
+      <template v-if="step===0"><label>닉네임<input ref="nicknameInput" v-model.trim="form.nickname" maxlength="30" autocomplete="nickname" placeholder="서비스에 표시될 이름"/></label><label>이메일<input ref="emailInput" v-model.trim="form.email" :readonly="googleSignup" type="email" autocomplete="email" placeholder="you@example.com"/></label><p v-if="googleSignup" class="step-note">구글 이메일 인증 완료</p></template>
+      <template v-else-if="step===1"><p v-if="googleSignup" class="step-note">구글 계정으로 인증됐어요. 별도 비밀번호 없이 이용할 수 있어요.</p><template v-else><button type="button" class="secondary" :disabled="verificationLoading" @click="requestEmailVerification">{{verificationLoading?'발급 중…':'이메일 인증번호 받기'}}</button><label>인증번호<input ref="emailCodeInput" v-model.trim="emailVerificationCode" inputmode="numeric" maxlength="6" placeholder="6자리 인증번호"/></label><button type="button" class="secondary" :disabled="verificationLoading||!emailVerificationCode" @click="confirmEmailVerification">{{emailVerified?'인증 완료':'인증번호 확인'}}</button><p v-if="verificationMessage" class="step-note">{{verificationMessage}}</p><label>비밀번호<input ref="passwordInput" v-model="form.password" type="password" autocomplete="new-password" minlength="8" maxlength="100" placeholder="8자 이상"/></label></template></template>
+      <template v-else-if="step===2"><label>생년월일<input ref="birthDateInput" v-model="form.birthDate" type="date"/></label><label>성별<select ref="genderSelect" v-model="form.gender"><option value="MALE">남성</option><option value="FEMALE">여성</option></select></label><p class="step-note">만 19세 이상 이용할 수 있어요.</p></template>
+      <template v-else-if="step===3"><label>거주 시/도<select ref="regionCitySelect" v-model="selectedRegionCity" @change="handleRegionCityChange"><option value="">시/도 선택</option><option v-for="city in regionCities" :key="city">{{city}}</option></select></label><label>거주 구/군<select ref="regionDistrictSelect" v-model="selectedRegionDistrict" @change="updateRegion" :disabled="!selectedRegionCity"><option value="">구/군 선택</option><option v-for="district in availableDistricts" :key="district">{{district}}</option></select></label></template>
+      <template v-else-if="step===4"><label>직업<input v-model.trim="form.job" maxlength="100" placeholder="예: 개발자"/></label><label>MBTI<select v-model="form.mbti"><option value="">선택해 주세요</option><option v-for="item in mbtiOptions" :key="item">{{item}}</option></select></label></template>
+      <template v-else-if="step===5"><label>흡연 여부<select v-model="form.smokingStatus"><option value="NON_SMOKER">비흡연</option><option value="OCCASIONAL">가끔 흡연</option><option value="SMOKER">흡연</option></select></label></template>
+      <template v-else-if="step===6"><label>음주 여부<select v-model="form.drinkingStatus"><option value="NONE">안 함</option><option value="SOMETIMES">가끔</option><option value="OFTEN">자주</option></select></label><label>종교<select v-model="form.religion"><option value="NONE">없음</option><option value="CHRISTIAN">기독교</option><option value="CATHOLIC">천주교</option><option value="BUDDHIST">불교</option><option value="OTHER">기타</option></select></label></template>
+      <TraitSelector v-else-if="step===7" v-model="form.traitsJson" scope="personality"/>
+      <TraitSelector v-else-if="step===8" v-model="form.traitsJson" scope="more"/>
+      <TraitSelector v-else-if="step===9" v-model="form.traitsJson" scope="personality" mode="preferences"/>
+      <TraitSelector v-else-if="step===10" v-model="form.traitsJson" scope="more" mode="preferences"/>
+      <template v-else-if="step===11"><label>자기소개<textarea v-model.trim="form.introduction" maxlength="2000" rows="5" placeholder="함께하고 싶은 일이나 나다운 이야기를 적어주세요."/></label><p class="step-note">성향 키워드는 가입 후 프로필 편집에서도 바꿀 수 있어요.</p></template>
+      <template v-else-if="step===12"><div class="terms-scroll" tabindex="0" role="region" aria-label="서비스 이용약관 본문"><TermsText type="terms"/></div><label class="consent-check"><input ref="termsCheckbox" v-model="form.agreedToTerms" type="checkbox"/><span>[필수] 서비스 이용약관에 동의합니다.</span></label></template>
+      <template v-else-if="step===13"><div class="terms-scroll privacy-scroll" tabindex="0" role="region" aria-label="개인정보 수집 이용 안내 본문"><TermsText type="privacy"/></div><label class="consent-check"><input v-model="form.agreedToPrivacy" type="checkbox"/><span>[필수] 개인정보 수집·이용에 동의합니다.</span></label><label class="consent-check"><input v-model="form.adultConfirmed" type="checkbox"/><span>[필수] 만 19세 이상입니다.</span></label><label class="consent-check"><input v-model="form.marketingConsent" type="checkbox"/><span>[선택] 이벤트·마케팅 안내 수신</span></label></template>
+     </section>
+    </Transition>
+   </div>
+   <footer class="wizard-footer"><p v-if="errorMessage" class="wizard-error" role="alert">{{errorMessage}}</p><div><button v-if="step>0" type="button" class="secondary" :disabled="loading" @click="moveStep(step-1)">이전</button><button class="primary" :disabled="loading||verificationLoading">{{loading?'저장 중…':step===titles.length-1?'동의하고 사진 등록':'다음'}}</button></div><p v-if="step===titles.length-1" class="step-note">사진 등록 후 운영자 심사를 거쳐 가입이 완료돼요.</p></footer>
+   <label class="honeypot-field" aria-hidden="true"><span>웹사이트</span><input v-model="form.website" tabindex="-1" autocomplete="off"/></label>
+  </form>
+ </section>
 </template>
-
 <script setup>
 import { pendingGoogle, googleToken, clearGoogle } from '../../auth-client/googleAuth';
+import TraitSelector from '../../components/TraitSelector.vue';
+import {serializeTraits,traitSummary} from '../../components/traits';
 import TermsText from "../../components/TermsText.vue";
 import "../../components/social.css";
 import { computed, nextTick, reactive, ref, watch } from "vue";
@@ -278,6 +96,7 @@ const form = reactive({
   region: "",
   job: "",
   mbti: "",
+  traitsJson: "",
   personality: "",
   idealType: "",
   introduction: "",
@@ -285,7 +104,7 @@ const form = reactive({
   drinkingStatus: "NONE",
   religion: "NONE",
   agreedToTerms: false,
-  agreedToPrivacy:false,adultConfirmed:false,marketingConsent:false,termsVersion:"2026-10-29-test",
+  agreedToPrivacy:false,adultConfirmed:false,marketingConsent:false,termsVersion:"2026-11-02-traits-test",
   website: "",
   formStartedAt: Date.now(),
 });
@@ -316,6 +135,8 @@ watch(() => form.email, () => {
 });
 
 const focusField = async (field) => {
+  const fieldSteps={nickname:0,email:0,emailCode:1,password:1,birthDate:2,gender:2,regionCity:3,regionDistrict:3,agreedToTerms:12};
+  if(fieldSteps[field]!==undefined)step.value=fieldSteps[field];
   await nextTick();
 
   const focusTargets = {
@@ -426,7 +247,7 @@ const requestEmailVerification = async () => {
   } catch (error) {
     const message = error.response?.data?.message || "이메일 인증번호 발급에 실패했습니다.";
     errorMessage.value = message;
-    window.alert(message);
+
   } finally {
     verificationLoading.value = false;
   }
@@ -453,7 +274,7 @@ const confirmEmailVerification = async () => {
     emailVerified.value = false;
     const message = error.response?.data?.message || "이메일 인증번호 확인에 실패했습니다.";
     errorMessage.value = message;
-    window.alert(message);
+
     await focusField("emailCode");
   } finally {
     verificationLoading.value = false;
@@ -468,11 +289,14 @@ const signup = async () => {
   try {
     const validationResult = validateForm();
     if (validationResult) {
-      window.alert(validationResult.message);
+      errorMessage.value=validationResult.message;
       await focusField(validationResult.field);
       return;
     }
 
+    form.traitsJson=serializeTraits(form.traitsJson);
+    form.personality=traitSummary(form.traitsJson);
+    form.idealType=traitSummary(form.traitsJson,'preferences');
     const payload=googleSignup.value?{...form,password:null,emailVerificationToken:null,firebaseIdToken:await googleToken()}:form;
     const data = await authClient.signup(payload);
     resetSignupApprovalNotice();
@@ -482,7 +306,7 @@ const signup = async () => {
   } catch (error) {
     const message = error.response?.data?.message || "회원가입에 실패했습니다. 입력값을 다시 확인해주세요.";
     errorMessage.value = message;
-    window.alert(message);
+
 
     if (message.includes("닉네임")) {
       await focusField("nickname");
@@ -493,238 +317,24 @@ const signup = async () => {
     loading.value = false;
   }
 };
+const step=ref(0),direction=ref('next'),stepPanel=ref();
+const titles=['어떤 이름으로 불러드릴까요?','계정을 안전하게 만들어요','기본 정보를 알려주세요','어디에 살고 계신가요?','일과 MBTI를 알려주세요','흡연 습관을 알려주세요','음주와 종교를 알려주세요','나는 어떤 사람인가','나의 소통·연애·생활','어떤 성격에 끌리나요?','함께할 때 바라는 성향','나를 소개해 주세요','서비스 이용약관','개인정보와 가입 동의'];
+async function moveStep(next){direction.value=next>step.value?'next':'back';step.value=next;errorMessage.value='';await nextTick();stepPanel.value?.scrollTo({top:0});}
+async function advance(){
+ if(loading.value||verificationLoading.value)return;
+ errorMessage.value='';
+ if(step.value===0&&(form.nickname.length<2||form.nickname.length>30||!/^\S+@\S+\.\S+$/.test(form.email))){errorMessage.value='닉네임 2~30자와 올바른 이메일을 입력해 주세요.';return;}
+ if(step.value===1&&!googleSignup.value&&(!form.emailVerificationToken||form.password.length<8)){errorMessage.value='이메일 인증을 완료하고 8자 이상 비밀번호를 입력해 주세요.';return;}
+ if(step.value===2){const v=validateForm();if(v&&['birthDate','gender'].includes(v.field)){errorMessage.value=v.message;return;}}
+ if(step.value===3&&(!selectedRegionCity.value||!selectedRegionDistrict.value)){errorMessage.value='거주 시/도와 구/군을 선택해 주세요.';return;}
+ if(step.value===4&&(!form.job.trim()||!form.mbti)){errorMessage.value='직업과 MBTI를 선택해 주세요.';return;}
+ if(step.value===11&&!form.introduction.trim()){errorMessage.value='자기소개를 입력해 주세요.';return;}
+ if(step.value===12&&!form.agreedToTerms){errorMessage.value='이용약관을 읽고 동의해 주세요.';return;}
+ if(step.value===titles.length-1){await signup();return;}
+ await moveStep(step.value+1);
+}
 </script>
 
 <style scoped>
-.auth-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  padding: max(16px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
-  background: transparent;
-}
-
-.auth-card {
-  width: min(100%, 560px);
-  min-height: min(920px, calc(100vh - 36px));
-  margin: auto 0;
-  padding: 28px 22px 26px;
-  border-radius: 32px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 251, 247, 0.97)),
-    rgba(255, 252, 247, 0.94);
-  border: 1px solid rgba(240, 210, 193, 0.92);
-  box-shadow:
-    0 26px 52px rgba(109, 70, 36, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(18px);
-}
-
-.eyebrow {
-  margin: 0 0 10px;
-  color: #b35a28;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-h1 {
-  margin: 0;
-  color: #35231a;
-  font-size: clamp(2rem, 7vw, 2.5rem);
-  line-height: 1.08;
-}
-
-.description {
-  margin: 12px 0 24px;
-  color: #6a5246;
-  line-height: 1.62;
-}
-
-.section-title {
-  margin-top: 8px;
-  color: #8d4b27;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-}
-
-.auth-form {
-  display: grid;
-  gap: 14px;
-}
-
-label {
-  display: grid;
-  gap: 8px;
-  color: #4d382d;
-  font-weight: 600;
-}
-
-.honeypot-field {
-  display: none;
-}
-
-.region-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-
-.verification-box {
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 20px;
-  background: rgba(255, 247, 239, 0.78);
-  border: 1px solid #f0d8c4;
-}
-
-input,
-select,
-textarea {
-  border: 1px solid #ebc7a9;
-  border-radius: 18px;
-  padding: 15px 16px;
-  font-size: 16px;
-  background: rgba(255, 255, 255, 0.94);
-  font-family: inherit;
-  box-shadow: inset 0 1px 2px rgba(77, 56, 45, 0.04);
-}
-
-select:disabled {
-  cursor: not-allowed;
-  background: #f7efe8;
-  color: #9f8677;
-}
-
-textarea {
-  resize: vertical;
-}
-
-.checkbox-row {
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  gap: 12px;
-  padding: 6px 0 4px;
-}
-
-.checkbox-row input {
-  margin-top: 3px;
-}
-
-.primary-button {
-  margin-top: 8px;
-  width: 100%;
-  border: none;
-  border-radius: 18px;
-  padding: 16px;
-  font-size: 15px;
-  font-weight: 800;
-  cursor: pointer;
-  background: linear-gradient(135deg, #cd6d2d 0%, #ec9456 100%);
-  color: #fff;
-  box-shadow: 0 16px 28px rgba(205, 109, 45, 0.24);
-}
-
-.ghost-button {
-  width: 100%;
-  border: 1px solid rgba(205, 109, 45, 0.32);
-  border-radius: 18px;
-  padding: 14px 16px;
-  background: #fffaf5;
-  color: #9a4e23;
-  font-size: 15px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.ghost-button:disabled,
-.primary-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.68;
-}
-
-.message {
-  margin-top: 16px;
-}
-
-.error {
-  color: #b72f2f;
-}
-
-.notice {
-  color: #276749;
-}
-
-.policy-box {
-  margin-top: 22px;
-  padding: 16px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #fff7ed 0%, #fff4eb 100%);
-  border: 1px solid #f0d8c4;
-  color: #6a5246;
-}
-
-.policy-box strong {
-  display: block;
-  margin-bottom: 8px;
-  color: #3b281f;
-}
-
-.policy-box p {
-  margin: 0;
-  line-height: 1.6;
-}
-
-.helper-text {
-  margin-top: 20px;
-  color: #6a5246;
-  text-align: center;
-}
-
-.helper-text a {
-  color: #a3461a;
-  font-weight: 700;
-}
-
-@media (min-width: 768px) {
-  .auth-page {
-    padding: 28px;
-  }
-
-  .auth-card {
-    min-height: auto;
-    padding: 36px 34px 32px;
-  }
-
-  .region-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
-  .auth-card {
-    border-radius: 28px;
-    padding: 24px 18px 22px;
-  }
-}
-</style>
-
-<style scoped>
-.signup-consents { padding-top: 12px; border-top: 1px solid #eddcd0; }
-.signup-consents h3 { margin: 8px 0 18px; font-size: 17px; color: #3b281f; }
-.consent-document { border: 1px solid #eadbd1; border-radius: 14px; background: #fff; overflow: hidden; }
-.consent-document summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; padding: 12px; color: #50382c; font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; }
-.consent-document summary::-webkit-details-marker { display: none; }
-.consent-document summary span { flex-shrink: 0; color: #98715d; font-size: 11px; }
-.consent-document summary::after { content: '+'; font-size: 18px; }
-.consent-document[open] summary::after { content: '−'; }
-.consent-body { max-height: 280px; overflow-y: auto; padding: 0 14px 14px; border-top: 1px solid #f0e6df; }
-.signup-consents .consent-check { display: flex; align-items: flex-start; gap: 10px; padding: 14px 0; margin: 0; min-height: 48px; font-size: 13px; font-weight: 500; line-height: 1.6; cursor: pointer; }
-.consent-check input { appearance: auto; flex: 0 0 20px; width: 20px; height: 20px; margin: 1px 0 0; padding: 0; border-radius: 4px; accent-color: #a95238; box-shadow: none; }
-.consent-check b { color: #a95238; font-weight: 600; }
-.consent-note { margin: 0; font-size: 12px; line-height: 1.6; color: #806c60; }
+.signup-wizard{height:100dvh;box-sizing:border-box;background:#fff9f4;color:#50382c;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);overflow:hidden}.wizard-shell{max-width:480px;height:100%;margin:auto;display:flex;flex-direction:column;min-height:0}.wizard-header{display:flex;align-items:center;gap:12px;padding:12px 20px;flex:none}.wizard-header a{font-size:30px;color:#a65b40;text-decoration:none;width:32px}.wizard-header span{font-weight:750;font-size:16px}.wizard-header small{margin-left:auto;font-size:12px;color:#987d6c}.wizard-progress{height:3px;background:#efdfd3;flex:none;margin:0 22px}.wizard-progress span{display:block;height:100%;background:#d56f4e;transition:width .2s}.wizard-stage{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:22px 22px 8px;overscroll-behavior:contain}.wizard-step h1{font-size:24px!important;letter-spacing:-.8px;margin:0 0 24px;line-height:1.35}.wizard-step>label{display:grid;gap:8px;margin:18px 0;font-size:13px;font-weight:600}.wizard-step input,.wizard-step select,.wizard-step textarea{box-sizing:border-box;width:100%;font:inherit;font-size:16px;border:1px solid #e9d1c1;border-radius:14px;background:#fff;color:#50382c;padding:13px;min-height:48px}.wizard-step textarea{resize:none}.step-note{font-size:12px;color:#947568;line-height:1.6}.wizard-footer{flex:none;padding:12px 22px 16px;background:#fff9f4;border-top:1px solid #f1e4da}.wizard-footer>div{display:flex;gap:10px}.wizard-footer .primary{flex:1}.primary,.secondary{font:inherit;font-size:14px;min-height:48px;padding:12px 18px;border-radius:14px;cursor:pointer}.primary{background:#bd6546;color:#fff;border:0;font-weight:700}.secondary{background:#fff;border:1px solid #e9d1c1;color:#916248}.primary:disabled,.secondary:disabled{opacity:.5;cursor:default}.wizard-error{color:#b44334;font-size:12px;line-height:1.5;margin:0 0 10px}.terms-scroll{max-height:calc(100dvh - 310px);overflow-y:auto;border:1px solid #efdfd3;border-radius:14px;background:#fff;padding:12px}.privacy-scroll{max-height:calc(100dvh - 420px)}.wizard-step .consent-check{display:flex;align-items:center;gap:10px;font-size:12px;margin:14px 0}.consent-check input{width:20px;height:20px;min-height:20px;padding:0;accent-color:#bd6546;flex:none}.honeypot-field{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}.step-next-enter-active,.step-next-leave-active,.step-back-enter-active,.step-back-leave-active{transition:transform .18s ease,opacity .18s ease}.step-next-enter-from{transform:translateX(36px);opacity:0}.step-next-leave-to{transform:translateX(-36px);opacity:0}.step-back-enter-from{transform:translateX(-36px);opacity:0}.step-back-leave-to{transform:translateX(36px);opacity:0}@media(prefers-reduced-motion:reduce){.step-next-enter-active,.step-next-leave-active,.step-back-enter-active,.step-back-leave-active,.wizard-progress span{transition:none}}@media(max-height:650px){.wizard-header{padding-block:6px}.wizard-stage{padding-top:14px}.wizard-step h1{font-size:21px!important;margin-bottom:16px}.wizard-footer{padding-top:8px;padding-bottom:8px}.wizard-step>label{margin:12px 0}}
 </style>

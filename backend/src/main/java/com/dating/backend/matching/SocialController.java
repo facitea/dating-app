@@ -24,6 +24,8 @@ public class SocialController {
     @PostMapping("/likes/{id}/dismiss") public void dismiss(Authentication a,@PathVariable Long id) { social.dismiss(a.getName(),id); }
     @GetMapping("/contact/{id}") public SocialService.Quote quote(Authentication a,@PathVariable Long id) { return social.quote(a.getName(),id); }
     @PostMapping("/direct") public SocialService.OpenResult direct(Authentication a,@RequestBody SocialService.DirectRequest r) { return social.direct(a.getName(),r); }
+    public record Decision(boolean accept) {}
+    @PostMapping("/rooms/{id}/request") public ChatRequestService.Status decide(Authentication a,@PathVariable Long id,@RequestBody Decision d){return social.decide(a.getName(),id,d.accept());}
     @GetMapping("/rooms") public List<SocialService.Room> rooms(Authentication a) { return social.rooms(a.getName()); }
     @GetMapping("/rooms/{id}/messages") public SocialService.Messages messages(Authentication a,@PathVariable Long id,@RequestParam(defaultValue="0") long after,@RequestParam(defaultValue="0") long before) { return social.messages(a.getName(),id,after,before); }
     @PostMapping("/rooms/{id}/messages") public SocialService.Message send(Authentication a,@PathVariable Long id,@RequestBody SocialService.SendRequest r) { return social.send(a.getName(),id,r); }

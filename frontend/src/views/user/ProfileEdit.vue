@@ -64,14 +64,10 @@
             </select>
           </label>
 
+          <details class="trait-edit" open><summary>나는 어떤 사람인가</summary><TraitSelector v-model="form.traitsJson" /></details>
           <label>
-            <span>내 성격</span>
-            <textarea v-model.trim="form.personality" rows="3" required></textarea>
-          </label>
-
-          <label>
-            <span>이상형</span>
-            <textarea v-model.trim="form.idealType" rows="3" required></textarea>
+            <span>내 성격 · 추가 설명</span>
+            <textarea v-model.trim="form.personality" rows="2"></textarea>
           </label>
 
           <label>
@@ -121,6 +117,8 @@
 </template>
 
 <script setup>
+import TraitSelector from '../../components/TraitSelector.vue';
+import {serializeTraits,traitSummary,parseTraits} from '../../components/traits';
 import PhotoEditor from "../../components/PhotoEditor.vue";
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
@@ -171,6 +169,7 @@ const form = reactive({
   region: "",
   job: "",
   mbti: "",
+  traitsJson: "",
   personality: "",
   idealType: "",
   introduction: "",
@@ -197,6 +196,7 @@ function hydrateForm(data) {
   form.region = data.region || "";
   form.job = data.job || "";
   form.mbti = data.mbti || "";
+  form.traitsJson = data.traitsJson || "";
   form.personality = data.personality || "";
   form.idealType = data.idealType || "";
   form.introduction = data.introduction || "";
@@ -227,7 +227,8 @@ async function fetchProfileWithFallback() {
       region: "",
       job: "",
       mbti: "",
-      personality: "",
+      traitsJson: "",
+  personality: "",
       idealType: "",
       introduction: "",
       smokingStatus: "NON_SMOKER",
@@ -240,6 +241,10 @@ async function fetchProfileWithFallback() {
 async function loadProfile() {
   try {
     hydrateForm(await fetchProfileWithFallback());
+    // The profile editor uses the same latest saved wishes as recommendation settings.
+    try { const {data}=await api.get('/social/preferences');const saved=data.pending||data.active;
+      if(saved?.traitPreferences!=null){const d=parseTraits(form.traitsJson);d.preferences=parseTraits(saved.traitPreferences).preferences;form.traitsJson=JSON.stringify(d);}
+    } catch { /* Pending signup accounts cannot access recommendation settings yet. */ }
   } catch (error) {
     clearToken();
     router.replace("/");
@@ -254,8 +259,8 @@ function validateProfile() {
   if (!selectedRegionDistrict.value) return "거주 구/군을 선택해 주세요.";
   if (!form.job.trim()) return "직업을 입력해 주세요.";
   if (!form.mbti.trim()) return "MBTI를 입력해 주세요.";
-  if (!form.personality.trim()) return "성격을 입력해 주세요.";
-  if (!form.idealType.trim()) return "이상형을 입력해 주세요.";
+
+
   if (!form.introduction.trim()) return "자기소개를 입력해 주세요.";
   if (!form.smokingStatus) return "흡연 여부를 선택해 주세요.";
   if (!form.drinkingStatus) return "음주 여부를 선택해 주세요.";
@@ -282,8 +287,9 @@ async function saveProfile() {
       region: form.region.trim(),
       job: form.job.trim(),
       mbti: form.mbti.trim(),
-      personality: form.personality.trim(),
-      idealType: form.idealType.trim(),
+      traitsJson: serializeTraits(form.traitsJson),
+      personality: form.personality.trim() || traitSummary(form.traitsJson),
+      idealType: form.idealType.trim() || traitSummary(form.traitsJson,'preferences'),
       introduction: form.introduction.trim(),
     };
 
@@ -306,6 +312,7 @@ onMounted(loadProfile);
 </script>
 
 <style scoped>
+.trait-edit{border:1px solid #efdbce;border-radius:16px;padding:14px;min-width:0}.trait-edit summary{cursor:pointer;font-weight:700;margin-bottom:14px;font-size:14px}
 .profile-page { min-height: 100vh; padding: max(16px, env(safe-area-inset-top)) 16px 24px; display: flex; justify-content: center; }
 .profile-shell { width: min(100%, 720px); display: grid; gap: 16px; }
 .page-card {

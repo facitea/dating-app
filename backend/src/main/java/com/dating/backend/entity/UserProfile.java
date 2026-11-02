@@ -50,6 +50,7 @@ public class UserProfile {
     @Column(columnDefinition = "TEXT")
     // 성격
     private String personality;
+    @Column(columnDefinition="TEXT") private String traitsJson;
 
     @Column(columnDefinition = "TEXT")
     // 이상형

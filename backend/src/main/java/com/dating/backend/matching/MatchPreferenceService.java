@@ -14,8 +14,12 @@ public class MatchPreferenceService {
     private final EntityManager em;
     private final DailyMatchSchedule schedule;
     private final RegionDistance regions;
+    private final TraitService traits;
     public record Conditions(Integer ageMin,Integer ageMax,String regionScope,String mbti,String smoking,String drinking,String religion,
-                             Integer birthYearMin,Integer birthYearMax,Integer radiusKm) {
+                             Integer birthYearMin,Integer birthYearMax,Integer radiusKm,String traitPreferences) {
+        public Conditions(Integer ageMin,Integer ageMax,String regionScope,String mbti,String smoking,String drinking,String religion,Integer birthYearMin,Integer birthYearMax,Integer radiusKm) {
+            this(ageMin,ageMax,regionScope,mbti,smoking,drinking,religion,birthYearMin,birthYearMax,radiusKm,null);
+        }
         public Conditions(Integer ageMin,Integer ageMax,String regionScope,String mbti,String smoking,String drinking,String religion) {
             this(ageMin,ageMax,regionScope,mbti,smoking,drinking,religion,null,null,null);
         }
@@ -38,12 +42,32 @@ public class MatchPreferenceService {
         }
         var pending=em.createQuery("select p from MatchPreference p where p.ownerId=:id and p.effectiveAt=:at",MatchPreference.class)
                 .setParameter("id",owner.getId()).setParameter("at",next).getResultStream().findFirst().orElseGet(MatchPreference::new);
+        if(pending.getId()==null&&c.traitPreferences()==null) {
+            var previous=active(owner.getId(),next);
+            if(previous!=null)pending.setTraitPreferences(previous.getTraitPreferences());
+        }
         pending.setOwnerId(owner.getId()); pending.setEffectiveAt(next);
+        if(c.traitPreferences()!=null)pending.setTraitPreferences(traits.wishes(c.traitPreferences()));
         pending.setBirthYearMin(c.birthYearMin()); pending.setBirthYearMax(c.birthYearMax()); pending.setRadiusKm(c.radiusKm());
         pending.setAgeMin(c.ageMin()); pending.setAgeMax(c.ageMax()); pending.setRegionScope(c.regionScope());
         pending.setMbti(c.mbti()); pending.setSmoking(c.smoking()); pending.setDrinking(c.drinking()); pending.setReligion(c.religion());
         if(pending.getId()==null) em.persist(pending);
         return settings(owner);
+    }
+    public void scheduleTraits(Long ownerId,String wishes) {
+        var w=schedule.current();
+        if(!configured(ownerId))return;
+        var next=w.now().isBefore(w.evening())?w.evening():w.resetAt();
+        var future=active(ownerId,next);
+        var c=dto(future);
+        var email=em.find(User.class,ownerId).getEmail();
+        save(email,new Conditions(c.ageMin(),c.ageMax(),c.regionScope(),c.mbti(),c.smoking(),c.drinking(),c.religion(),c.birthYearMin(),c.birthYearMax(),c.radiusKm(),wishes));
+    }
+    public Fit directional(Long owner,Long target,Instant start,UserProfile mine,UserProfile other,UserVerification targetVerification,LocalDate day) {
+        var p=active(owner,start);
+        var base=fit(p,mine,other,targetVerification,day);
+        var detail=traits.assess(p==null?null:p.getTraitPreferences(),traits.approved(owner),traits.approved(target));
+        return traits.combine(base,detail);
     }
     public boolean configured(Long ownerId) {
         return em.createQuery("select count(p) from MatchPreference p where p.ownerId=:id",Long.class)
@@ -72,14 +96,40 @@ public class MatchPreferenceService {
         return equal(p.getMbti(),other.getMbti())&&equal(p.getSmoking(),other.getSmokingStatus())
                 &&equal(p.getDrinking(),other.getDrinkingStatus())&&equal(p.getReligion(),other.getReligion());
     }
+    public record Fit(Integer percent,int criteria,String comment) {}
+    public Fit fit(MatchPreference p,UserProfile owner,UserProfile viewer,UserVerification v,LocalDate day) {
+        if(p==null)return new Fit(null,0,"상대가 아직 추천조건을 설정하지 않았어요");
+        if(viewer==null||v==null||v.getBirthDate()==null)return new Fit(null,0,"비교할 프로필 정보가 부족해요");
+        List<Boolean> checks=new ArrayList<>();
+        int year=v.getBirthDate().getYear(),age=Period.between(v.getBirthDate(),day).getYears();
+        if(p.getBirthYearMin()!=null||p.getBirthYearMax()!=null||p.getAgeMin()!=null||p.getAgeMax()!=null)
+            checks.add((p.getBirthYearMin()==null||year>=p.getBirthYearMin())&&(p.getBirthYearMax()==null||year<=p.getBirthYearMax())&&(p.getAgeMin()==null||age>=p.getAgeMin())&&(p.getAgeMax()==null||age<=p.getAgeMax()));
+        if(p.getRadiusKm()!=null)checks.add(regions.within(owner==null?null:owner.getRegion(),viewer.getRegion(),p.getRadiusKm()));
+        else if(p.getRegionScope()!=null&&!"ANY".equals(p.getRegionScope())) {
+            String a=owner==null?null:owner.getRegion(),z=viewer.getRegion();
+            checks.add(a!=null&&z!=null&&("CITY".equals(p.getRegionScope())?a.trim().split("\\s+")[0].equals(z.trim().split("\\s+")[0]):a.equals(z)));
+        }
+        String[] desired={p.getMbti(),p.getSmoking(),p.getDrinking(),p.getReligion()};
+        String[] actual={viewer.getMbti(),viewer.getSmokingStatus(),viewer.getDrinkingStatus(),viewer.getReligion()};
+        for(int i=0;i<desired.length;i++)if(desired[i]!=null&&!"ANY".equals(desired[i]))checks.add(desired[i].equals(actual[i]));
+        if(checks.isEmpty())return new Fit(null,0,"상대가 모든 조건을 상관없음으로 설정했어요");
+        int matched=(int)checks.stream().filter(Boolean::booleanValue).count();
+        return new Fit((int)Math.round(100.0*matched/checks.size()),checks.size(),"상대가 설정한 "+checks.size()+"개 조건 중 "+matched+"개에 맞아요");
+    }
     private boolean equal(String desired,String actual) { return "ANY".equals(desired)||Objects.equals(desired,actual); }
     private Settings settings(User owner) {
         var w=schedule.current(); var start=w.now().isBefore(w.evening())?w.morning():w.evening();
         var pending=em.createQuery("select p from MatchPreference p where p.ownerId=:id and p.effectiveAt>:now order by p.effectiveAt desc",MatchPreference.class)
                 .setParameter("id",owner.getId()).setParameter("now",w.now()).setMaxResults(1).getResultStream().findFirst().orElse(null);
-        return new Settings(dto(active(owner.getId(),start)),pending==null?null:dto(pending),pending==null?null:pending.getEffectiveAt(),w.now().isBefore(w.evening())?w.evening():w.resetAt(),region(owner.getId()),regions.known(region(owner.getId())),w.now().atZone(DailyMatchSchedule.ZONE).getYear(),configured(owner.getId()));
+        var active=active(owner.getId(),start);
+        var activeDto=dto(active);
+        if(active==null) {
+            var own=em.createQuery("select p from UserProfile p where p.userId=:id",UserProfile.class).setParameter("id",owner.getId()).getResultStream().findFirst().orElse(null);
+            activeDto=new Conditions(null,null,"ANY","ANY","ANY","ANY","ANY",null,null,null,own==null?null:traits.wishes(own.getTraitsJson()));
+        }
+        return new Settings(activeDto,pending==null?null:dto(pending),pending==null?null:pending.getEffectiveAt(),w.now().isBefore(w.evening())?w.evening():w.resetAt(),region(owner.getId()),regions.known(region(owner.getId())),w.now().atZone(DailyMatchSchedule.ZONE).getYear(),configured(owner.getId()));
     }
-    private Conditions dto(MatchPreference p) { return p==null?new Conditions(null,null,"ANY","ANY","ANY","ANY","ANY"):new Conditions(p.getAgeMin(),p.getAgeMax(),p.getRegionScope(),p.getMbti(),p.getSmoking(),p.getDrinking(),p.getReligion(),p.getBirthYearMin(),p.getBirthYearMax(),p.getRadiusKm()); }
+    private Conditions dto(MatchPreference p) { return p==null?new Conditions(null,null,"ANY","ANY","ANY","ANY","ANY"):new Conditions(p.getAgeMin(),p.getAgeMax(),p.getRegionScope(),p.getMbti(),p.getSmoking(),p.getDrinking(),p.getReligion(),p.getBirthYearMin(),p.getBirthYearMax(),p.getRadiusKm(),p.getTraitPreferences()); }
     private String region(Long id) {
         return em.createQuery("select p.region from UserProfile p where p.userId=:id",String.class).setParameter("id",id).getResultStream().findFirst().orElse("");
     }
