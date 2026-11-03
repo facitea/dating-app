@@ -1,3 +1,4 @@
+import { installNativeNavigation } from './native';
 import { createApp } from "vue";
 import App from "./App.vue";
 import privateImage from "./privateImage";
@@ -8,3 +9,5 @@ createApp(App)
   .directive("private-src", privateImage)
   .use(router) // 🔥 핵심 추가
   .mount("#app");
+
+installNativeNavigation(router);

@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily Geureomuri backup
+[Timer]
+OnCalendar=*-*-* 18:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

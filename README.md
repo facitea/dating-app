@@ -58,3 +58,7 @@ Configuration alone is not an end-to-end verification: test a real Google popup 
 - Uploaded photos are private: authenticated `/api/media/...` for members, `/api/admin/media/...` for admins. Do not expose the uploads folder through nginx/static hosting.
 - Email verification and password reset are disabled until real email delivery is implemented: the old endpoints disclosed development codes/tokens. Existing email login and Google login still work. Never enable `app.auth.dev-verification=true` on a public server.
 - Public legal page: `/legal`; operator 양종현 / sku2013@naver.com. Retention and deletion gaps are recorded in the security report, not silently described as implemented.
+
+## 다른 PC / 다른 AI로 인수인계
+
+[작업 규칙](AGENTS.md) → [새 PC 설정](docs/NEW-PC.md) → [현재 작업 현황](docs/HANDOFF.md) → [AWS 운영](docs/lightsail-deployment.md). 비밀 파일은 GitHub와 별도로 복원합니다.

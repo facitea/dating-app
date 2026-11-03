@@ -1,5 +1,6 @@
+import { Capacitor } from '@capacitor/core';
 import api from '../api/api';
-export const supported=()=>window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+export const supported=()=>!Capacitor.isNativePlatform() && window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 async function bounded(promise){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('알림 권한 요청이 대기 중입니다. 브라우저에서 허용한 뒤 다시 눌러 주세요.')),15000);})]);}finally{clearTimeout(timer);}}
 export async function enablePush(){
  if(!supported())throw Error('이 브라우저에서는 푸시를 지원하지 않아요. HTTPS 주소의 Chrome 또는 설치한 앱에서 이용해 주세요.');

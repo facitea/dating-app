@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import axios from "axios";
 import {adminCsrf,clearAdmin} from "../adminSession";
 import { clearToken, getToken, setAuthTokens } from "../utils/auth";
@@ -9,10 +10,11 @@ function resolveApiBaseUrl() {
     return envBaseUrl;
   }
 
+  if (Capacitor.isNativePlatform()) throw new Error('안드로이드 서버 주소가 설정되지 않았습니다. android:sync로 다시 빌드해 주세요.');
+
   if (import.meta.env.DEV) return `${window.location.origin}/api`;
 
-  const hostname = window.location.hostname || "localhost";
-  return `http://${hostname}:8082/api`;
+  return `${window.location.origin}/api`;
 }
 
 const api = axios.create({

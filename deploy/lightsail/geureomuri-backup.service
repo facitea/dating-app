@@ -1,0 +1,6 @@
+[Unit]
+Description=Back up Geureomuri database and photos
+After=mariadb.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/geureomuri-backup

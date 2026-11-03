@@ -1,0 +1,23 @@
+[Unit]
+Description=Geureomuri backend
+After=network.target mariadb.service
+Requires=mariadb.service
+
+[Service]
+User=geureomuri
+Group=geureomuri
+WorkingDirectory=/srv/geureomuri
+EnvironmentFile=/etc/geureomuri/app.env
+ExecStart=/usr/bin/java -Xms128m -Xmx640m -XX:MaxMetaspaceSize=256m -jar /srv/geureomuri/current/app.jar
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=143
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/geureomuri/data
+
+[Install]
+WantedBy=multi-user.target

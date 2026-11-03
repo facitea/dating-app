@@ -53,3 +53,10 @@ Thumbs.db
 .idea/
 
 *firebase-adminsdk*.json
+
+# Android local machine and signing configuration
+local.properties
+google-services.json
+*.keystore
+*.apk
+*.aab

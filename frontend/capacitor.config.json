@@ -1,0 +1,24 @@
+{
+  "appId": "com.facitea.geureomuri",
+  "appName": "그럼우리",
+  "webDir": "dist",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "CapacitorCookies": {
+      "enabled": true
+    },
+    "FirebaseAuthentication": {
+      "providers": [
+        "google.com"
+      ]
+    },
+    "Keyboard": {
+      "resizeOnFullScreen": true
+    }
+  },
+  "android": {
+    "backgroundColor": "#fff9f4"
+  }
+}

@@ -30,6 +30,7 @@ const routes = [
   { path: "/admin/reviews", redirect: "/admin/signup" },
   { path: "/admin/safety", redirect: "/admin/support" },
   { path: "/admin", redirect: "/admin/overview" },
+  { path: "/admin/login", redirect: "/admin/overview" },
   { path: "/admin/:section", component: AdminConsole },
   { path: "/signup", component: Signup, meta: { guestOnly: true } },
   { path: "/reset-password", component: ResetPassword, meta: { guestOnly: true } },

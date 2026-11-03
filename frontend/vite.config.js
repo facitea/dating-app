@@ -3,6 +3,8 @@ import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
   plugins: [vue()],
+  // Firebase Auth and App must share one component registry.
+  resolve: { dedupe: ['@firebase/app', '@firebase/component', 'firebase'] },
   server: {
     // Allow access from the local network so phone testing works too.
     host: true,
