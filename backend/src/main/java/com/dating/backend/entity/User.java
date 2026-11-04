@@ -33,6 +33,8 @@ public class User {
     @Column(nullable=false,columnDefinition="integer default 0") private int warningCount;
     @Column(nullable=false,columnDefinition="bigint default 0") private long totalBlockCount;
 
+    @Column(nullable=false,columnDefinition="boolean default false") private boolean selfieRequired;
+    @Column(length=500) private String selfieRequestReason;
     private boolean resting;
     private long sessionVersion;
     @Builder.Default private String profileReviewStatus="NONE";

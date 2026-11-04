@@ -1,0 +1,14 @@
+import {ref} from 'vue';
+import {createUserWithEmailAndPassword,signInWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail,reload,signOut} from 'firebase/auth';
+import {firebaseAuth as auth,firebasePersistence} from './firebaseCore';
+import api from '../api/api';
+export const pendingEmail=ref(null);
+function requireAuth(){if(!auth)throw new Error('Firebase 이메일 로그인 설정이 필요합니다.');}
+export async function signInEmail(email,password){requireAuth();await firebasePersistence;const {user}=await signInWithEmailAndPassword(auth,email.trim(),password);pendingEmail.value={user,email:user.email};if(!user.emailVerified)return {state:'VERIFY_EMAIL',email:user.email};return exchangeEmail();}
+export async function registerEmail(email,password){requireAuth();await firebasePersistence;if(password.length<8)throw new Error('비밀번호는 8자 이상 입력해 주세요.');let user;try{({user}=await createUserWithEmailAndPassword(auth,email.trim(),password));}catch(e){if(e.code!=='auth/email-already-in-use')throw e;({user}=await signInWithEmailAndPassword(auth,email.trim(),password));}pendingEmail.value={user,email:user.email};if(!user.emailVerified)await sendEmailVerification(user);return user.emailVerified;}
+export async function resendEmailVerification(){requireAuth();const user=pendingEmail.value?.user;if(!user)throw new Error('이메일과 비밀번호로 다시 로그인해 주세요.');await sendEmailVerification(user);}
+export async function emailToken(expectedEmail){requireAuth();const user=pendingEmail.value?.user;if(!user)throw new Error('이메일과 비밀번호로 다시 인증해 주세요.');await reload(user);if(expectedEmail&&user.email?.toLowerCase()!==expectedEmail.trim().toLowerCase())throw new Error('인증한 이메일과 입력한 이메일이 다릅니다.');if(!user.emailVerified)throw new Error('받은 메일의 인증 링크를 먼저 눌러 주세요. 스팸함도 확인해 주세요.');return user.getIdToken(true);}
+export async function exchangeEmail(existingPassword){const {data}=await api.post('/auth/firebase/email',{idToken:await emailToken(),existingPassword});return data;}
+export async function resetEmailPassword(email){requireAuth();await firebasePersistence;await sendPasswordResetEmail(auth,email.trim());}
+export async function clearEmail(){pendingEmail.value=null;if(auth)await signOut(auth);}
+export function emailError(e){const map={'auth/invalid-credential':'이메일 또는 비밀번호를 확인해 주세요. Google 가입 계정은 Google 로그인을 이용해 주세요.','auth/invalid-email':'올바른 이메일을 입력해 주세요.','auth/weak-password':'더 안전한 비밀번호를 입력해 주세요.','auth/password-does-not-meet-requirements':'Firebase 비밀번호 정책에 맞는 비밀번호를 입력해 주세요.','auth/email-already-in-use':'이미 사용 중인 이메일입니다. 로그인해 주세요.','auth/user-disabled':'사용이 중지된 인증 계정입니다. 고객센터로 문의해 주세요.','auth/too-many-requests':'요청이 많습니다. 잠시 후 다시 시도해 주세요.','auth/operation-not-allowed':'Firebase에서 이메일/비밀번호 로그인을 사용 설정해 주세요.','auth/network-request-failed':'네트워크 연결을 확인해 주세요.','auth/user-not-found':'이메일 또는 비밀번호를 확인해 주세요.','auth/wrong-password':'이메일 또는 비밀번호를 확인해 주세요.'};return e.response?.data?.message||map[e.code]||(!e.code?e.message:null)||'이메일 인증을 완료하지 못했습니다. 다시 시도해 주세요.';}

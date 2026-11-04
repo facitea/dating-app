@@ -31,10 +31,15 @@ public class BlockedIdentityService {
     private final BlockedIdentityRepository blockedIdentityRepository;
     private final FraudRiskLogRepository fraudRiskLogRepository;
     private final UserRepository userRepository;
+    private final com.dating.backend.matching.SafetyEventService safetyEvents;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
 
     @Transactional(readOnly = true)
     public void validateSignupAllowed(String email, String phone) {
+        validateSanction(email, null);
         if (isBlocked(TYPE_EMAIL, normalize(email))) {
+            var identity=blockedIdentityRepository.findByIdentityTypeAndIdentityValueAndActiveTrue(TYPE_EMAIL,normalize(email)).orElse(null);
+            if(identity!=null&&identity.getSourceUserId()!=null)safetyEvents.record(identity.getSourceUserId(),null,null,"BLOCKED_REGISTRATION","차단된 이메일 재가입 시도");
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "차단된 이메일입니다. 가입할 수 없습니다.");
         }
 
@@ -204,6 +209,13 @@ public class BlockedIdentityService {
         return type;
     }
 
+    public void validateSanction(String email,String firebaseUid) {
+        var users=em.createQuery("select u from User u where upper(u.email)=:email or (:uid is not null and u.firebaseUid=:uid)",User.class).setParameter("email",normalize(email)).setParameter("uid",firebaseUid).getResultList();
+        for(var u:users){boolean permanent="PERMANENT".equals(u.getSanctionType());boolean temporary="TEMPORARY".equals(u.getSanctionType())&&u.getSuspendedUntil()!=null&&u.getSuspendedUntil().isAfter(java.time.Instant.now());if(permanent||temporary){
+            safetyEvents.record(u.getId(),null,null,"BLOCKED_REGISTRATION",permanent?"영구 정지 계정 재가입 시도":"기간 정지 계정 재가입 시도 · 종료 "+u.getSuspendedUntil());
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,permanent?"영구 정지된 계정은 다시 가입할 수 없습니다.":"정지 기간에는 다시 가입할 수 없습니다. 종료: "+u.getSuspendedUntil().atZone(java.time.ZoneId.of("Asia/Seoul")));
+        }}
+    }
     private boolean isBlocked(String type, String normalizedValue) {
         if (normalizedValue == null || normalizedValue.isBlank()) {
             return false;

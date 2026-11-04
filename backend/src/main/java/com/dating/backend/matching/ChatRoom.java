@@ -9,6 +9,8 @@ public class ChatRoom {
     @Column(nullable=false) private Long lowId;
     @Column(nullable=false) private Long highId;
     private boolean matched;
+    @Column(nullable=false,columnDefinition="bigint default 0") private long matchGeneration;
+    public String matchEventKey(){return "MATCH:"+id+(matchGeneration>0?":"+matchGeneration:"");}
     private boolean ended;
     private long readLow;
     private long readHigh;

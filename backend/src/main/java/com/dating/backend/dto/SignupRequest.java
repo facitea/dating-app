@@ -18,7 +18,8 @@ import java.time.LocalDate;
 @Setter
 public class SignupRequest {
     @Size(max=16000) private String firebaseIdToken;
-    @AssertTrue(message="이메일 인증과 비밀번호 또는 구글 인증이 필요합니다.")
+    @Pattern(regexp="GOOGLE|PASSWORD") private String firebaseProvider;
+    @AssertTrue(message="이메일 또는 Google 인증을 먼저 완료해 주세요.")
     public boolean isAuthenticationProvided() {
         return firebaseIdToken!=null&&!firebaseIdToken.isBlank() || password!=null&&password.length()>=8&&emailVerificationToken!=null&&!emailVerificationToken.isBlank();
     }

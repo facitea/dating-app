@@ -71,9 +71,7 @@ public class RefreshTokenService {
         if ("SUSPENDED".equals(user.getStatus()) || "DELETED".equals(user.getStatus())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "현재 계정 상태에서는 로그인 유지가 불가능합니다.");
         }
-        if ("HIGH_RISK".equals(user.getFraudReviewStatus())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "스캠 의심 계정으로 분류되어 로그인할 수 없습니다.");
-        }
+        // Profile keyword scores are reviewed manually; account sanctions remain enforced.
     }
 
     private void revoke(RefreshToken refreshToken) {

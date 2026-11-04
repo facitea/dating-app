@@ -16,6 +16,7 @@ public class SocialService {
     private final InboxService inbox;
     private final DailyMatchSchedule schedule;
     private final ChatRequestService requests;
+    private final SafetyEventService safetyEvents;
     @Value("${app.credits.direct-chat-cost:10}") private int directCost;
     public record Person(Long id,String nickname,int age,String region,String imageUrl) {}
     public record Connection(Person person,Long roomId,boolean matched,Instant createdAt,String eventKey) {
@@ -23,11 +24,11 @@ public class SocialService {
     }
     public record Overview(List<Connection> received,List<Connection> sent,List<Connection> matched) {}
     public record Room(Long id,Person person,boolean matched,String lastMessage,Instant updatedAt,long unread,ChatRequestService.Status request) {}
-    public record Message(Long id,Long senderId,String text,Instant createdAt,String clientId,boolean mine) {}
+    public record Message(Long id,Long senderId,String text,Instant createdAt,String clientId,boolean mine,String safetyWarning) {}
     public record Messages(Long roomId,Person person,List<Message> messages,boolean hasOlder,long peerReadThrough,boolean matched,ChatRequestService.Status request) {}
     public record Quote(int balance,int cost,Long roomId) {}
-    public record SendRequest(String text,String clientId) {}
-    public record DirectRequest(Long targetId,String text,String clientId,Integer expectedCost) {}
+    public record SendRequest(String text,String clientId,Boolean safetyAcknowledged) { public SendRequest { safetyAcknowledged=Boolean.TRUE.equals(safetyAcknowledged); } public SendRequest(String text,String clientId){this(text,clientId,false);} }
+    public record DirectRequest(Long targetId,String text,String clientId,Integer expectedCost,Boolean safetyAcknowledged) { public DirectRequest { safetyAcknowledged=Boolean.TRUE.equals(safetyAcknowledged); } public DirectRequest(Long targetId,String text,String clientId,Integer expectedCost){this(targetId,text,clientId,expectedCost,false);} }
     public record OpenResult(Long roomId,int charged,int balance) {}
 
     public record PublicProfile(Person person,List<String> images,String job,String mbti,String introduction,String personality,String idealType,String smoking,String drinking,String religion,int totalImages,int ownImageCount,String traitsJson) {}
@@ -44,7 +45,7 @@ public class SocialService {
     }
     @Transactional(readOnly=true) public List<Person> blocks(String email){var me=user(email);return em.createQuery("select v.targetId from MemberVisibility v where v.ownerId=:u and v.blocked=true",Long.class).setParameter("u",me.getId()).getResultList().stream().map(this::person).toList();}
     @Transactional public void unblock(String email,Long id){var me=user(email);lockPair(me.getId(),id);var v=visibility(me.getId(),id,false);if(v!=null&&v.isBlocked()){var target=em.find(User.class,id);long active=em.createQuery("select count(v) from MemberVisibility v where v.targetId=:id and v.blocked=true",Long.class).setParameter("id",id).getSingleResult();target.setTotalBlockCount(Math.max(target.getTotalBlockCount(),active));v.setBlocked(false);}}
-    @Transactional public void unmatch(String email,Long id){var me=user(email);lockPair(me.getId(),id);var r=findRoom(me.getId(),id);if(r==null||!r.isMatched())throw error(HttpStatus.NOT_FOUND,"매칭된 상대를 찾을 수 없습니다.");em.lock(r,LockModeType.PESSIMISTIC_WRITE);r.setEnded(true);r.setMatched(false);for(var l:List.of(new Long[]{me.getId(),id},new Long[]{id,me.getId()})){var like=findLike(l[0],l[1]);if(like!=null)like.setActive(false);}}
+    @Transactional public void unmatch(String email,Long id){var me=user(email);lockPair(me.getId(),id);var r=findRoom(me.getId(),id);if(r==null||!r.isMatched())throw error(HttpStatus.NOT_FOUND,"매칭된 상대를 찾을 수 없습니다.");em.lock(r,LockModeType.PESSIMISTIC_WRITE);r.setEnded(true);r.setMatched(false);em.createQuery("update AppNotice n set n.seen=true,n.pushed=true where n.eventKey=:key").setParameter("key",r.matchEventKey()).executeUpdate();for(var l:List.of(new Long[]{me.getId(),id},new Long[]{id,me.getId()})){var like=findLike(l[0],l[1]);if(like!=null)like.setActive(false);}}
     @Transactional public void block(String email,Long id) {
         var me=user(email);lockPair(me.getId(),id);requireKnown(me.getId(),id);
         if(em.find(User.class,id)==null)throw error(HttpStatus.NOT_FOUND,"상대를 찾을 수 없습니다.");
@@ -68,19 +69,20 @@ public class SocialService {
     private boolean matchHidden(Long me,Long other){var v=visibility(me,other,false);return v!=null&&v.isMatchHidden();}
 
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED) public Connection like(String email,Long otherId) {
-        var me=user(email); lockPair(me.getId(),otherId); requireAvailable(me.getId(),otherId); requireKnown(me.getId(),otherId);
+        var me=user(email); lockPair(me.getId(),otherId); if(!eligible(me.getId(),otherId))throw error(HttpStatus.FORBIDDEN,"현재 대화할 수 없는 상대입니다."); requireKnown(me.getId(),otherId);
         var like=findLike(me.getId(),otherId);
         if(like==null) { like=new MemberLike(); like.setSenderId(me.getId()); like.setTargetId(otherId); em.persist(like); }
-        like.setActive(true);em.flush();inbox.add(otherId,"LIKE:"+like.getId(),"새 좋아요가 도착했어요","매칭현황에서 상대를 확인해 보세요.","/matches");
+        if(!like.isActive()){like.setCreatedAt(Instant.now());like.setDismissed(false);}like.setActive(true);var ownVisibility=visibility(me.getId(),otherId,false);if(ownVisibility!=null)ownVisibility.setMatchHidden(false);em.flush();inbox.add(otherId,"LIKE:"+like.getId()+":"+like.getCreatedAt().toEpochMilli(),"새 좋아요가 도착했어요","매칭현황에서 상대를 확인해 보세요.","/matches");
         var reverse=findLike(otherId,me.getId());
         var room=findRoom(me.getId(),otherId);
-        if(reverse!=null&&reverse.isActive()) {
+        if(reverse!=null&&reverse.isActive()&&(room==null||!room.isMatched()||room.isEnded())) {
             if(room==null) room=createRoom(me.getId(),otherId);
             else em.refresh(room,LockModeType.PESSIMISTIC_WRITE);
-            room.setMatched(true);
+            if(room.isEnded()){room.setMatchGeneration(room.getMatchGeneration()+1);room.setEnded(false);}room.setMatched(true);room.setUpdatedAt(Instant.now());
+            for(var pair:List.of(new Long[]{me.getId(),otherId},new Long[]{otherId,me.getId()})){var v=visibility(pair[0],pair[1],false);if(v!=null){v.setMatchHidden(false);v.setChatHidden(false);}}
             requests.matched(room);
-            inbox.add(me.getId(),"MATCH:"+room.getId(),"새로운 매칭이 성사됐어요","대화방에서 인사를 건네보세요.","/chats/"+room.getId());
-            inbox.add(otherId,"MATCH:"+room.getId(),"새로운 매칭이 성사됐어요","대화방에서 인사를 건네보세요.","/chats/"+room.getId());
+            inbox.add(me.getId(),room.matchEventKey(),"새로운 매칭이 성사됐어요","대화방에서 인사를 건네보세요.","/chats/"+room.getId());
+            inbox.add(otherId,room.matchEventKey(),"새로운 매칭이 성사됐어요","대화방에서 인사를 건네보세요.","/chats/"+room.getId());
         }
         return new Connection(person(otherId),room==null?null:room.getId(),room!=null&&room.isMatched(),like.getCreatedAt());
     }
@@ -97,14 +99,14 @@ public class SocialService {
         List<Connection> received=new ArrayList<>(),sent=new ArrayList<>(),matched=new ArrayList<>();
         for(var l:likes) {
             boolean incoming=l.getTargetId().equals(me.getId()); var other=incoming?l.getSenderId():l.getTargetId();
-            if(!available(me.getId(),other)||matchHidden(me.getId(),other)) continue;
+            if(!eligible(me.getId(),other)||matchHidden(me.getId(),other)) continue;
             var room=findRoom(me.getId(),other);
-            var c=new Connection(person(other),room==null?null:room.getId(),room!=null&&room.isMatched(),l.getCreatedAt(),incoming?"LIKE:"+l.getId():null);
+            var c=new Connection(person(other),room==null?null:room.getId(),room!=null&&room.isMatched(),l.getCreatedAt(),incoming?"LIKE:"+l.getId()+":"+l.getCreatedAt().toEpochMilli():null);
             if(incoming&&!l.isDismissed()&&!c.matched()) received.add(c);
             if(!incoming) sent.add(c);
         }
         for(var room:allRooms(me.getId())) if(room.isMatched()&&available(me.getId(),other(room,me.getId()))&&!matchHidden(me.getId(),other(room,me.getId())))
-            matched.add(new Connection(person(other(room,me.getId())),room.getId(),true,room.getUpdatedAt(),"MATCH:"+room.getId()));
+            matched.add(new Connection(person(other(room,me.getId())),room.getId(),true,room.getUpdatedAt(),room.matchEventKey()));
         return new Overview(received,sent,matched);
     }
     @Transactional(readOnly=true) public Quote quote(String email,Long otherId) {
@@ -114,12 +116,17 @@ public class SocialService {
     }
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED) public OpenResult direct(String email,DirectRequest request) {
         if(request==null||request.targetId()==null) throw error(HttpStatus.BAD_REQUEST,"상대를 선택해 주세요.");
-        validateMessage(new SendRequest(request.text(),request.clientId()));
+        validateMessage(new SendRequest(request.text(),request.clientId(),request.safetyAcknowledged()));
         var me=user(email); lockPair(me.getId(),request.targetId()); requireAvailable(me.getId(),request.targetId()); requireKnown(me.getId(),request.targetId());
         var room=findRoom(me.getId(),request.targetId());
         if(room!=null)em.lock(room,LockModeType.PESSIMISTIC_WRITE);
         var wallet=em.find(CreditWallet.class,me.getId(),LockModeType.PESSIMISTIC_WRITE); int balance=wallet==null?0:wallet.getBalance(); int charged=0;
         if(room==null) {
+            Instant start=LocalDate.now(ZoneId.of("Asia/Seoul")).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+            // expiresAt is immutable and exactly creation +72h, including legacy requests.
+            long count=em.createQuery("select count(r) from DirectChatRequest r where r.senderId=:u and r.expiresAt>=:start and r.expiresAt<:end",Long.class).setParameter("u",me.getId()).setParameter("start",start.plus(Duration.ofHours(72))).setParameter("end",start.plus(Duration.ofHours(96))).getSingleResult();
+            if(count>=7){safetyEvents.record(me.getId(),request.targetId(),null,"DAILY_REQUEST_LIMIT","하루 대화 요청 7명 한도 초과 시도");throw error(HttpStatus.TOO_MANY_REQUESTS,"하루 최대 소개 한도를 넘었어요. 대화 요청은 하루 7명까지 가능하며, 한국시간 자정에 초기화됩니다.");}
+            checkMessageSafety(me.getId(),request.targetId(),null,new SendRequest(request.text(),request.clientId(),request.safetyAcknowledged()));
             if(request.expectedCost()==null||request.expectedCost()!=directCost) throw error(HttpStatus.CONFLICT,"크레딧 비용을 다시 확인해 주세요.");
             if(balance<directCost) throw error(HttpStatus.CONFLICT,"크레딧이 부족합니다. 충전 기능은 준비 중입니다.");
             room=createRoom(me.getId(),request.targetId());
@@ -127,7 +134,7 @@ public class SocialService {
             charged=directCost; balance-=charged; wallet.setBalance(balance);
             var entry=new CreditEntry(); entry.setUserId(me.getId()); entry.setAmount(-charged); entry.setReferenceKey("DIRECT_CHAT:"+room.getId()); em.persist(entry);
         } else em.lock(room,LockModeType.PESSIMISTIC_WRITE);
-        append(room,me.getId(),new SendRequest(request.text(),request.clientId()));
+        append(room,me.getId(),new SendRequest(request.text(),request.clientId(),request.safetyAcknowledged()));
         return new OpenResult(room.getId(),charged,balance);
     }
     @Transactional(readOnly=true) public List<Room> rooms(String email) {
@@ -172,11 +179,17 @@ public class SocialService {
                 .setParameter("room",room.getId()).setParameter("sender",sender).setParameter("client",request.clientId()).getResultStream().findFirst().orElse(null);
         if(existing!=null) return existing;
         requests.requireSendAllowed(room,sender);
+        checkMessageSafety(sender,other(room,sender),room.getId(),request);
         var m=new ChatMessage(); m.setRoomId(room.getId()); m.setSenderId(sender); m.setClientId(request.clientId()); m.setBody(request.text().trim()); em.persist(m); em.flush();
         inbox.add(other(room,sender),"CHAT:"+m.getId(),"새 메시지가 도착했어요","채팅방에서 메시지를 확인해 주세요.","/chats/"+room.getId());
         room.setLastMessageId(m.getId()); room.setLastMessage(m.getBody()); room.setUpdatedAt(m.getCreatedAt());
         if(room.getLowId().equals(sender)) room.setReadLow(m.getId()); else room.setReadHigh(m.getId());
         return m;
+    }
+    private void checkMessageSafety(Long sender,Long target,Long room,SendRequest r){
+        var flags=MessageSafety.flags(r.text());if(flags.isEmpty())return;
+        safetyEvents.record(sender,target,room,String.join("_",flags).length()>40?"MESSAGE_RISK":flags.get(0),"위험 신호: "+String.join(", ",flags)+" · "+r.text());
+        if(!r.safetyAcknowledged())throw error(HttpStatus.CONFLICT,"SAFETY_WARNING: 외부 링크 또는 금전 관련 내용이 포함되어 있어요. 송금·투자 유도, 피싱 및 사기 행위는 이용 제한·영구 정지될 수 있습니다. 내용을 확인한 뒤 전송해 주세요.");
     }
     private void validateMessage(SendRequest r) {
         if(r==null||r.text()==null||r.text().isBlank()||r.text().length()>2000) throw error(HttpStatus.BAD_REQUEST,"메시지는 1~2,000자로 입력해 주세요.");
@@ -206,14 +219,15 @@ public class SocialService {
                 .setParameter("me",me).setParameter("other",other).setParameter("day",schedule.current().day()).getSingleResult();
         if(count==0) throw error(HttpStatus.FORBIDDEN,"공개된 인연에게만 보낼 수 있습니다.");
     }
-    private void requireAvailable(Long a,Long b) { if(!available(a,b)) throw error(HttpStatus.FORBIDDEN,"현재 대화할 수 없는 상대입니다."); }
-    boolean available(Long a,Long b) {
+    private void requireAvailable(Long a,Long b) { if(!available(a,b)){var room=findRoom(a,b);throw error(HttpStatus.FORBIDDEN,room!=null&&room.isEnded()?"매칭이 해제된 상대입니다. 서로 다시 좋아요를 보내면 대화를 재개할 수 있어요.":"현재 대화할 수 없는 상대입니다.");} }
+    boolean available(Long a,Long b) {if(!eligible(a,b))return false;var room=findRoom(a,b);return room==null||!room.isEnded();}
+    private boolean eligible(Long a,Long b) {
         if(b==null||a.equals(b)) return false;
         var me=em.find(User.class,a); var other=em.find(User.class,b);
         if(me==null||other==null||!"ACTIVE".equals(me.getStatus())||!"ACTIVE".equals(other.getStatus())) return false;
-        long reports=em.createQuery("select count(r) from UserReport r where (r.reporterUserId=:a and r.reportedUserId=:b) or (r.reporterUserId=:b and r.reportedUserId=:a)",Long.class).setParameter("a",a).setParameter("b",b).getSingleResult();
+        long reports=em.createQuery("select count(r) from UserReport r where r.contactReleasedAt is null and ((r.reporterUserId=:a and r.reportedUserId=:b) or (r.reporterUserId=:b and r.reportedUserId=:a))",Long.class).setParameter("a",a).setParameter("b",b).getSingleResult();
         long blocks=em.createQuery("select count(v) from MemberVisibility v where v.blocked=true and ((v.ownerId=:a and v.targetId=:b) or (v.ownerId=:b and v.targetId=:a))",Long.class).setParameter("a",a).setParameter("b",b).getSingleResult();
-        var room=findRoom(a,b);return reports==0&&blocks==0&&(room==null||!room.isEnded());
+        return reports==0&&blocks==0;
     }
     private Person person(Long id) {
         var u=em.find(User.class,id);
@@ -224,6 +238,6 @@ public class SocialService {
         var image=em.createQuery("select i.imageUrl from UserProfileImage i where i.userId=:id order by i.isMain desc,i.imageOrder",String.class).setParameter("id",id).setMaxResults(1).getResultStream().findFirst().orElse(null);
         return new Person(id,u.getNickname(),v==null?0:Period.between(v.getBirthDate(),schedule.current().day()).getYears(),p==null?"":p.getRegion(),image);
     }
-    private Message dto(ChatMessage m,Long me) { return new Message(m.getId(),m.getSenderId(),m.getBody(),m.getCreatedAt(),m.getClientId(),m.getSenderId().equals(me)); }
+    private Message dto(ChatMessage m,Long me) { return new Message(m.getId(),m.getSenderId(),m.getBody(),m.getCreatedAt(),m.getClientId(),m.getSenderId().equals(me),MessageSafety.warning(m.getBody())); }
     private ResponseStatusException error(HttpStatus status,String message) { return new ResponseStatusException(status,message); }
 }

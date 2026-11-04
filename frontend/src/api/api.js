@@ -39,10 +39,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let refreshInFlight=null;
+function refreshSession(){
+  if(!refreshInFlight)refreshInFlight=refreshApi.post("/auth/refresh").then(({data})=>{setAuthTokens(data);return data;}).finally(()=>{refreshInFlight=null;});
+  return refreshInFlight;
+}
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    if(error.response?.data?.code==="SELFIE_REQUIRED"&&window.location.pathname!=="/selfie-required")window.location.assign("/selfie-required");
     if(error.response?.status===401 && originalRequest?.url?.startsWith("/admin/"))clearAdmin();
     const status = error.response?.status;
     const canTryRefresh = status === 401
@@ -54,12 +60,11 @@ api.interceptors.response.use(
     if (canTryRefresh) {
       originalRequest._retry = true;
       try {
-        const { data } = await refreshApi.post("/auth/refresh");
-        setAuthTokens(data);
+        const data = await refreshSession();
         originalRequest.headers.Authorization = `Bearer ${data.token}`;
         return api(originalRequest);
       } catch (refreshError) {
-        clearToken();
+        if([401,403].includes(refreshError.response?.status))clearToken();
         return Promise.reject(refreshError);
       }
     }

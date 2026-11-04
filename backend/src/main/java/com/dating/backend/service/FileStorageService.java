@@ -47,16 +47,16 @@ public class FileStorageService {
             try(var input=javax.imageio.ImageIO.createImageInputStream(file.getInputStream())) {
                 var readers=javax.imageio.ImageIO.getImageReaders(input);
                 if(!readers.hasNext())throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"사진을 해석할 수 없습니다. 앱의 사진 자르기 화면을 통해 업로드해 주세요.");
-                var reader=readers.next();try{reader.setInput(input);long pixels=(long)reader.getWidth(0)*reader.getHeight(0);if(pixels<=0||pixels>20_000_000)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"사진 해상도는 2천만 화소 이하로 선택해 주세요.");image=reader.read(0);}finally{reader.dispose();}
+                var reader=readers.next();try{reader.setInput(input);long pixels=(long)reader.getWidth(0)*reader.getHeight(0);if(pixels<=0||pixels>20_000_000)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"사진 해상도는 2천만 화소 이하로 선택해 주세요.");var params=reader.getDefaultReadParam();int sample=Math.max(1,Math.max(reader.getWidth(0),reader.getHeight(0))/1600);params.setSourceSubsampling(sample,sample,0,0);image=reader.read(0,params);}finally{reader.dispose();}
             }
-            String filename = "user-" + userId + "-" + UUID.randomUUID() + ".png";
+            String filename = "user-" + userId + "-" + UUID.randomUUID() + ".jpg";
             Path target = profileDir.resolve(filename).normalize();
 
             if (!target.startsWith(profileDir)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 파일 경로입니다.");
             }
 
-            if(!javax.imageio.ImageIO.write(image,"png",target.toFile()))throw new IOException("Cannot encode photo");
+            Files.write(target,PhotoCompression.jpeg(image,1600,.85f),java.nio.file.StandardOpenOption.CREATE_NEW);
             return "/uploads/profile/" + filename;
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 저장 중 오류가 발생했습니다.");

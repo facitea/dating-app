@@ -7,7 +7,7 @@
     <Transition :name="direction==='next'?'step-next':'step-back'" mode="out-in">
      <section :key="step" class="wizard-step"><h1>{{titles[step]}}</h1>
       <template v-if="step===0"><label>닉네임<input ref="nicknameInput" v-model.trim="form.nickname" maxlength="30" autocomplete="nickname" placeholder="서비스에 표시될 이름"/></label><label>이메일<input ref="emailInput" v-model.trim="form.email" :readonly="googleSignup" type="email" autocomplete="email" placeholder="you@example.com"/></label><p v-if="googleSignup" class="step-note">구글 이메일 인증 완료</p></template>
-      <template v-else-if="step===1"><p v-if="googleSignup" class="step-note">구글 계정으로 인증됐어요. 별도 비밀번호 없이 이용할 수 있어요.</p><template v-else><button type="button" class="secondary" :disabled="verificationLoading" @click="requestEmailVerification">{{verificationLoading?'발급 중…':'이메일 인증번호 받기'}}</button><label>인증번호<input ref="emailCodeInput" v-model.trim="emailVerificationCode" inputmode="numeric" maxlength="6" placeholder="6자리 인증번호"/></label><button type="button" class="secondary" :disabled="verificationLoading||!emailVerificationCode" @click="confirmEmailVerification">{{emailVerified?'인증 완료':'인증번호 확인'}}</button><p v-if="verificationMessage" class="step-note">{{verificationMessage}}</p><label>비밀번호<input ref="passwordInput" v-model="form.password" type="password" autocomplete="new-password" minlength="8" maxlength="100" placeholder="8자 이상"/></label></template></template>
+      <template v-else-if="step===1"><p v-if="googleSignup" class="step-note">구글 계정으로 인증됐어요. 별도 비밀번호 없이 이용할 수 있어요.</p><template v-else><p v-if="emailVerified" class="step-note">이메일 인증이 완료됐어요. 다음 단계로 진행해 주세요.</p><template v-else><label>비밀번호<input ref="passwordInput" v-model="form.password" :disabled="verificationLoading||verificationSent" type="password" autocomplete="new-password" minlength="8" maxlength="100" placeholder="8자 이상"/></label><label>비밀번호 확인<input v-model="passwordConfirm" :disabled="verificationLoading||verificationSent" type="password" autocomplete="new-password" maxlength="100" placeholder="비밀번호를 한 번 더 입력하세요"/></label><p v-if="passwordConfirm&&form.password!==passwordConfirm" role="alert" class="wizard-error">비밀번호가 일치하지 않습니다.</p><label v-if="!verificationSent" class="consent-check"><input type="checkbox" v-model="authConsent"/><span>이메일 인증을 위해 이메일·비밀번호를 Firebase Authentication으로 처리하는 데 동의합니다. <RouterLink to="/legal" target="_blank">개인정보 안내</RouterLink></span></label><button type="button" class="secondary" :disabled="verificationLoading||(!verificationSent&&!authConsent)" @click="requestEmailVerification">{{verificationLoading?'처리 중…':verificationSent?'인증 메일 다시 보내기':'인증 메일 보내기'}}</button><p class="step-note">메일의 인증 링크를 누른 뒤 이 화면으로 돌아와 확인해 주세요. 인증번호를 입력할 필요는 없어요.</p><button type="button" class="secondary" :disabled="verificationLoading||!verificationSent" @click="confirmEmailVerification">인증 완료 확인</button></template><p v-if="verificationMessage" class="step-note" role="status">{{verificationMessage}}</p></template></template>
       <template v-else-if="step===2"><label>생년월일<input ref="birthDateInput" v-model="form.birthDate" type="date"/></label><label>성별<select ref="genderSelect" v-model="form.gender"><option value="MALE">남성</option><option value="FEMALE">여성</option></select></label><p class="step-note">만 19세 이상 이용할 수 있어요.</p></template>
       <template v-else-if="step===3"><label>거주 시/도<select ref="regionCitySelect" v-model="selectedRegionCity" @change="handleRegionCityChange"><option value="">시/도 선택</option><option v-for="city in regionCities" :key="city">{{city}}</option></select></label><label>거주 구/군<select ref="regionDistrictSelect" v-model="selectedRegionDistrict" @change="updateRegion" :disabled="!selectedRegionCity"><option value="">구/군 선택</option><option v-for="district in availableDistricts" :key="district">{{district}}</option></select></label></template>
       <template v-else-if="step===4"><label>직업<input v-model.trim="form.job" maxlength="100" placeholder="예: 개발자"/></label><label>MBTI<select v-model="form.mbti"><option value="">선택해 주세요</option><option v-for="item in mbtiOptions" :key="item">{{item}}</option></select></label></template>
@@ -23,12 +23,13 @@
      </section>
     </Transition>
    </div>
-   <footer class="wizard-footer"><p v-if="errorMessage" class="wizard-error" role="alert">{{errorMessage}}</p><div><button v-if="step>0" type="button" class="secondary" :disabled="loading" @click="moveStep(step-1)">이전</button><button class="primary" :disabled="loading||verificationLoading">{{loading?'저장 중…':step===titles.length-1?'동의하고 사진 등록':'다음'}}</button></div><p v-if="step===titles.length-1" class="step-note">사진 등록 후 운영자 심사를 거쳐 가입이 완료돼요.</p></footer>
+   <footer class="wizard-footer"><p v-if="errorMessage" class="wizard-error" role="alert">{{errorMessage}}</p><div><button v-if="step>0" type="button" class="secondary" :disabled="loading" @click="moveStep(step-1)">이전</button><button class="primary" :disabled="loading||verificationLoading">{{loading?'저장 중…':step===titles.length-1?'동의하고 사진 등록':'다음'}}</button></div><p v-if="step===titles.length-1" class="step-note"></p></footer>
    <label class="honeypot-field" aria-hidden="true"><span>웹사이트</span><input v-model="form.website" tabindex="-1" autocomplete="off"/></label>
   </form>
  </section>
 </template>
 <script setup>
+import {pendingEmail,registerEmail,resendEmailVerification,emailToken,exchangeEmail,clearEmail,emailError} from '../../auth-client/emailAuth';
 import { pendingGoogle, googleToken, clearGoogle } from '../../auth-client/googleAuth';
 import TraitSelector from '../../components/TraitSelector.vue';
 import {serializeTraits,traitSummary} from '../../components/traits';
@@ -73,11 +74,13 @@ const verificationLoading = ref(false);
 const errorMessage = ref("");
 const verificationMessage = ref("");
 const emailVerificationCode = ref("");
-const emailVerified = ref(false);
+const emailVerified = ref(Boolean(pendingEmail.value?.user?.emailVerified));
+const verificationSent=ref(Boolean(pendingEmail.value)),authConsent=ref(false);
 const nicknameInput = ref(null);
 const emailInput = ref(null);
 const emailCodeInput = ref(null);
 const passwordInput = ref(null);
+const passwordConfirm=ref("");
 const birthDateInput = ref(null);
 const genderSelect = ref(null);
 const regionCitySelect = ref(null);
@@ -88,7 +91,7 @@ const selectedRegionDistrict = ref("");
 
 const form = reactive({
   nickname: "",
-  email: googleSignup.value ? pendingGoogle.value.email : "",
+  email: googleSignup.value ? pendingGoogle.value.email : pendingEmail.value?.email || "",
   emailVerificationToken: "",
   password: "",
   birthDate: "",
@@ -122,7 +125,8 @@ const resetEmailVerification = () => {
   form.emailVerificationToken = "";
   emailVerificationCode.value = "";
   emailVerified.value = false;
-  verificationMessage.value = "";
+  verificationMessage.value = "";verificationSent.value=false;authConsent.value=false;
+  if(pendingEmail.value&&pendingEmail.value.email?.toLowerCase()!==form.email.trim().toLowerCase())clearEmail();
 };
 
 const handleRegionCityChange = () => {
@@ -169,14 +173,14 @@ const validateForm = () => {
     };
   }
 
-  if (!googleSignup.value && !form.emailVerificationToken) {
+  if (!googleSignup.value && !emailVerified.value) {
     return {
       field: "emailCode",
       message: "이메일 인증을 먼저 완료해주세요.",
     };
   }
 
-  if (!googleSignup.value && form.password.length < 8) {
+  if (!googleSignup.value && !emailVerified.value && form.password.length < 8) {
     return {
       field: "password",
       message: "비밀번호는 8자 이상으로 입력해주세요.",
@@ -224,61 +228,21 @@ const validateForm = () => {
   return null;
 };
 
-const requestEmailVerification = async () => {
-  verificationLoading.value = true;
-  errorMessage.value = "";
-  verificationMessage.value = "";
-  form.emailVerificationToken = "";
-  emailVerified.value = false;
-
-  try {
-    if (!form.email.trim()) {
-      window.alert("이메일을 먼저 입력해주세요.");
-      await focusField("email");
-      return;
-    }
-
-    const data = await authClient.requestEmailCode(form.email, "SIGNUP");
-
-    verificationMessage.value = data.devCode
-      ? `개발용 이메일 인증번호: ${data.devCode}`
-      : data.message || "인증번호를 발급했습니다.";
-    await focusField("emailCode");
-  } catch (error) {
-    const message = error.response?.data?.message || "이메일 인증번호 발급에 실패했습니다.";
-    errorMessage.value = message;
-
-  } finally {
-    verificationLoading.value = false;
-  }
+const requestEmailVerification=async()=>{
+ verificationLoading.value=true;errorMessage.value='';
+ try{
+  if(verificationSent.value){await resendEmailVerification();}
+  else {if(form.password!==passwordConfirm.value)throw new Error('비밀번호가 일치하지 않습니다.');if(!authConsent.value)throw new Error('이메일 인증을 위한 처리 동의를 확인해 주세요.');const verified=await registerEmail(form.email,form.password);verificationSent.value=true;if(verified){await emailToken(form.email);emailVerified.value=true;verificationMessage.value='이메일 인증이 완료됐어요.';return;}}
+  verificationMessage.value='인증 메일을 보냈어요. 메일함과 스팸함을 확인해 주세요.';
+ }catch(e){errorMessage.value=emailError(e);}finally{verificationLoading.value=false;}
 };
-
-const confirmEmailVerification = async () => {
-  verificationLoading.value = true;
-  errorMessage.value = "";
-
-  try {
-    if (!emailVerificationCode.value) {
-      window.alert("이메일 인증번호를 입력해주세요.");
-      await focusField("emailCode");
-      return;
-    }
-
-    const data = await authClient.confirmEmailCode(form.email, emailVerificationCode.value, "SIGNUP");
-
-    form.emailVerificationToken = data.verificationToken;
-    emailVerified.value = true;
-    verificationMessage.value = data.message || "이메일 인증이 완료되었습니다.";
-  } catch (error) {
-    form.emailVerificationToken = "";
-    emailVerified.value = false;
-    const message = error.response?.data?.message || "이메일 인증번호 확인에 실패했습니다.";
-    errorMessage.value = message;
-
-    await focusField("emailCode");
-  } finally {
-    verificationLoading.value = false;
-  }
+const confirmEmailVerification=async()=>{
+ verificationLoading.value=true;errorMessage.value='';
+ try{await emailToken(form.email);const result=await exchangeEmail();
+  if(result.state==='LINK_REQUIRED')throw new Error('기존 계정이 있어요. 로그인 화면에서 기존 비밀번호를 확인한 뒤 연결해 주세요.');
+  if(result.auth){setAuthTokens(result.auth);await clearEmail();router.push(result.auth.user?.status==='ACTIVE'?'/today':'/review-pending');return;}
+  emailVerified.value=true;verificationMessage.value='이메일 인증이 완료됐어요.';
+ }catch(e){emailVerified.value=false;errorMessage.value=emailError(e);}finally{verificationLoading.value=false;}
 };
 
 // 가입 정보 저장이 끝나면 바로 가입 완료가 아니라 사진 심사 단계로 보낸다.
@@ -297,14 +261,14 @@ const signup = async () => {
     form.traitsJson=serializeTraits(form.traitsJson);
     form.personality=traitSummary(form.traitsJson);
     form.idealType=traitSummary(form.traitsJson,'preferences');
-    const payload=googleSignup.value?{...form,password:null,emailVerificationToken:null,firebaseIdToken:await googleToken()}:form;
+    const payload={...form,password:null,emailVerificationToken:null,firebaseProvider:googleSignup.value?"GOOGLE":"PASSWORD",firebaseIdToken:googleSignup.value?await googleToken():await emailToken(form.email)};
     const data = await authClient.signup(payload);
     resetSignupApprovalNotice();
     setAuthTokens(data);
     router.push("/review-pending");
-    if(googleSignup.value)await clearGoogle();
+    if(googleSignup.value)await clearGoogle();else await clearEmail();
   } catch (error) {
-    const message = error.response?.data?.message || "회원가입에 실패했습니다. 입력값을 다시 확인해주세요.";
+    const message = error.response?.data?.message || emailError(error);
     errorMessage.value = message;
 
 
@@ -324,7 +288,7 @@ async function advance(){
  if(loading.value||verificationLoading.value)return;
  errorMessage.value='';
  if(step.value===0&&(form.nickname.length<2||form.nickname.length>30||!/^\S+@\S+\.\S+$/.test(form.email))){errorMessage.value='닉네임 2~30자와 올바른 이메일을 입력해 주세요.';return;}
- if(step.value===1&&!googleSignup.value&&(!form.emailVerificationToken||form.password.length<8)){errorMessage.value='이메일 인증을 완료하고 8자 이상 비밀번호를 입력해 주세요.';return;}
+ if(step.value===1&&!googleSignup.value&&!emailVerified.value){errorMessage.value='메일의 인증 링크를 누른 뒤 인증 완료 확인을 눌러 주세요.';return;}
  if(step.value===2){const v=validateForm();if(v&&['birthDate','gender'].includes(v.field)){errorMessage.value=v.message;return;}}
  if(step.value===3&&(!selectedRegionCity.value||!selectedRegionDistrict.value)){errorMessage.value='거주 시/도와 구/군을 선택해 주세요.';return;}
  if(step.value===4&&(!form.job.trim()||!form.mbti)){errorMessage.value='직업과 MBTI를 선택해 주세요.';return;}

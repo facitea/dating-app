@@ -1,7 +1,7 @@
 {
   "appId": "com.facitea.geureomuri",
   "appName": "그럼우리",
-  "webDir": "dist",
+  "webDir": "dist-android",
   "plugins": {
     "CapacitorHttp": {
       "enabled": true

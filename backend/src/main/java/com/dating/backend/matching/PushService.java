@@ -1,7 +1,7 @@
 package com.dating.backend.matching;
 import jakarta.persistence.*;import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;import org.springframework.web.server.ResponseStatusException;import org.springframework.http.HttpStatus;import java.util.*;import java.net.URI;import java.security.MessageDigest;import java.nio.charset.StandardCharsets;
 @Service @RequiredArgsConstructor public class PushService {
- private final EntityManager em;private final InboxService inbox;private final PushDelivery delivery;
+ private final EntityManager em;private final InboxService inbox;private final PushDelivery delivery;private final NativePushService nativePush;
  public record Subscription(String endpoint,Map<String,String> keys){}
  public record Config(boolean enabled,String publicKey){}
  public Config config(){return new Config(delivery.ready(),delivery.key());}
@@ -16,13 +16,13 @@ import jakarta.persistence.*;import lombok.RequiredArgsConstructor;import org.sp
  }
  @Transactional public void unsubscribe(String email,String endpoint){em.createQuery("delete from PushDevice d where d.userId=:u and d.endpointHash=:h").setParameter("u",inbox.user(email).getId()).setParameter("h",hash(endpoint)).executeUpdate();}
  @Transactional public void deliver(){
-  if(!delivery.ready())return;
+  if(!delivery.ready()&&!nativePush.ready())return;
   var pending=em.createQuery("select n from AppNotice n where n.pushed=false and n.pushAttempts<3 order by n.id",AppNotice.class).setMaxResults(10).getResultList();
   for(var n:pending){var preferences=em.find(AccountPreferences.class,n.getUserId());
    if(!AccountService.allowed(preferences,n.getEventKey())){n.setPushed(true);continue;}
    if(AccountService.quiet(preferences,java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul")).getHour())){n.setPushed(true);continue;}
-   if(n.isSeen()){n.setPushed(true);continue;}var devices=em.createQuery("select d from PushDevice d where d.userId=:u",PushDevice.class).setParameter("u",n.getUserId()).getResultList();boolean success=true;
-   for(var d:devices)try{int code=delivery.send(d);if(code==404||code==410)em.remove(d);else if(code<200||code>=300)success=false;}catch(Exception e){success=false;}
+   if(n.isSeen()){n.setPushed(true);continue;}var devices=em.createQuery("select d from PushDevice d where d.userId=:u",PushDevice.class).setParameter("u",n.getUserId()).getResultList();boolean success=nativePush.send(n);
+   for(var d:devices)if(delivery.ready())try{int code=delivery.send(d);if(code==404||code==410)em.remove(d);else if(code<200||code>=300)success=false;}catch(Exception e){success=false;}
    n.setPushAttempts(n.getPushAttempts()+1);n.setPushed(success);
   }
  }

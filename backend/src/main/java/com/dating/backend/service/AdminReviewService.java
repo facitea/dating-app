@@ -44,6 +44,7 @@ public class AdminReviewService {
     private final UserProfileImageRepository userProfileImageRepository;
     private final AdminReviewHistoryRepository adminReviewHistoryRepository;
     private final AccountReviewPolicyService accountReviewPolicyService;
+    private final com.dating.backend.matching.SelfieReviewService selfies;
 
 
     public void validateAdminKey(String ignored) { com.dating.backend.admin.AdminService.requireSession(); }
@@ -129,6 +130,7 @@ public class AdminReviewService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "고위험 스캠 의심 계정은 승인할 수 없습니다. 고객센터 상황실에서 먼저 확인해 주세요.");
         }
 
+        selfies.requireSignup(userId,true);
         user.setStatus("ACTIVE");
         user.setReviewComment("회원 가입 심사가 승인되었습니다.");
         user.setReviewDeadlineAt(null);

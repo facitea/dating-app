@@ -41,6 +41,7 @@ public class JwtUtil {
                 .compact();
     }
 
+    public boolean selfieRequired(String email){return users.findByEmail(email).map(com.dating.backend.entity.User::isSelfieRequired).orElse(false);}
     public String getEmail(String token) {
         return Jwts.parser()
                 .setSigningKey(secretKey)

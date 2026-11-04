@@ -7,10 +7,17 @@ public class AdminFilter extends OncePerRequestFilter {
  public static boolean allowed(String role,String method,String path){
   if(path.equals("/api/admin/session")||path.startsWith("/api/admin/session/"))return true;
   if(role.equals("OWNER"))return true;
+  if(path.matches("/api/admin/console/members/[0-9]+/blocks/[0-9]+/release"))return method.equals("POST")&&role.equals("SUPPORT");
+  if(path.matches("/api/admin/console/members/[0-9]+/blocks"))return method.equals("GET")&&role.equals("SUPPORT");
+  if(path.matches("/api/admin/console/members/[0-9]+/compensation"))return method.equals("POST")&&role.equals("SUPPORT");
+  if(path.matches("/api/admin/safety/reports/[0-9]+/conversation"))return method.equals("GET")&&Set.of("SUPPORT","REVIEWER").contains(role);
+  if(path.startsWith("/api/admin/photo-duplicates"))return role.equals("REVIEWER");
+  if(path.startsWith("/api/admin/photo-history"))return role.equals("REVIEWER");
+  if(path.startsWith("/api/admin/selfies"))return role.equals("REVIEWER");
   if(path.startsWith("/api/admin/accounts")||path.equals("/api/admin/audit"))return false;
   if(method.equals("GET"))return path.startsWith("/api/admin/console/")||path.startsWith("/api/admin/reviews")||path.startsWith("/api/admin/media/")||path.startsWith("/api/admin/support/")||path.startsWith("/api/admin/safety/")||path.startsWith("/api/admin/phone-auth/");
   if(role.equals("REVIEWER"))return path.matches("/api/admin/reviews/[0-9]+/(approve|reject|memo)")||path.matches("/api/admin/console/members/[0-9]+/review");
-  if(role.equals("SUPPORT"))return path.startsWith("/api/admin/support/")||path.matches("/api/admin/safety/reports/[0-9]+/resolve");
+  if(role.equals("SUPPORT"))return path.startsWith("/api/admin/support/")||path.matches("/api/admin/safety/monitor/[0-9]+")||path.matches("/api/admin/safety/reports/[0-9]+/resolve");
   return false;
  }
  private void reject(HttpServletResponse r,int status,String text)throws IOException{r.setStatus(status);r.setContentType("application/json;charset=UTF-8");r.getWriter().write("{\"message\":\""+text+"\"}");}

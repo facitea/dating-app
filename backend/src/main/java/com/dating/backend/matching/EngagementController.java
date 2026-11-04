@@ -1,7 +1,9 @@
 package com.dating.backend.matching;
 import lombok.RequiredArgsConstructor;import org.springframework.web.bind.annotation.*;import org.springframework.security.core.Authentication;import java.util.*;
 @RestController @RequestMapping("/api/social") @RequiredArgsConstructor public class EngagementController {
- private final InboxService inbox;private final WalletService wallet;private final PushService push;
+ private final InboxService inbox;private final WalletService wallet;private final PushService push;private final NativePushService nativePush;
+ @PostMapping("/push/native") public void nativeSubscribe(Authentication a,@RequestBody NativePushService.Device d){nativePush.subscribe(a.getName(),d);}
+ @DeleteMapping("/push/native") public void nativeUnsubscribe(Authentication a,@RequestBody NativePushService.Device d){nativePush.unsubscribe(a.getName(),d);}
  @GetMapping("/inbox") public List<AppNotice> list(Authentication a,@RequestParam(defaultValue="0")long before){return inbox.list(a.getName(),before);}
  @GetMapping("/inbox/unread") public long unread(Authentication a){return inbox.unread(a.getName());}
  @PostMapping("/inbox/read") public void read(Authentication a,@RequestBody List<Long> ids){inbox.read(a.getName(),ids);}

@@ -16,7 +16,7 @@
 - DB and backend bind to loopback only. Public API goes through Nginx HTTPS.
 - Test credit top-ups are enabled for the test deployment (user request, 2026-11-03); disable before production. Exposed phone codes remain disabled.
 - Firebase authorized domain includes the temporary hostname. Actual Google user login still requires user testing.
-- Email verification/reset requires SMTP integration; not enabled by this deployment.
+- New email/password accounts now use Firebase verification/reset emails (2026-11-04). Legacy local-account password recovery still needs separate support; see HANDOFF.md.
 
 ## Commands (SSH as ubuntu, use sudo)
 

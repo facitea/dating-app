@@ -102,6 +102,12 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/firebase/email")
+    public AuthService.GoogleResult firebaseEmail(@Valid @RequestBody GoogleRequest request,HttpServletRequest httpRequest,HttpServletResponse response){
+        var context=buildAbuseContext(httpRequest);abuseProtectionService.protectLogin("firebase-email:"+context.ipAddress(),context);
+        try{var result=authService.firebaseEmailLogin(request.idToken(),request.existingPassword());if(result.auth()!=null)withRefreshCookie(result.auth(),response);return result;}
+        catch(org.springframework.web.server.ResponseStatusException e){abuseProtectionService.recordFailure("FIREBASE_EMAIL_LOGIN_FAILED","IP",context.ipAddress(),context,e.getReason());throw e;}
+    }
     @PostMapping("/phone/request")
     public PhoneVerificationStartResponse requestPhoneVerification(
             @Valid @RequestBody PhoneVerificationRequest request,

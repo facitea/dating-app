@@ -1,0 +1,8 @@
+package com.dating.backend.matching;
+import com.dating.backend.entity.User;import jakarta.persistence.EntityManager;import org.junit.jupiter.api.Test;import org.springframework.beans.factory.annotation.Autowired;import org.springframework.boot.test.context.SpringBootTest;import org.springframework.transaction.annotation.Transactional;import java.time.Instant;import java.util.UUID;import static org.junit.jupiter.api.Assertions.*;
+@SpringBootTest @Transactional class SelfieQueueTest {
+ @Autowired EntityManager em;@Autowired SelfieReviewService service;
+ User member(String status,boolean required){var u=User.builder().email(UUID.randomUUID()+"@queue.test").nickname(UUID.randomUUID().toString().substring(0,12)).provider("LOCAL").status(status).build();u.setSelfieRequired(required);em.persist(u);return u;}
+ SelfieReview pending(User u){var r=new SelfieReview();r.setUserId(u.getId());r.setState("PENDING");r.setSubmittedAt(Instant.now());r.setDeleteAt(Instant.now().plusSeconds(3600));r.setSelfieFile("test.png");em.persist(r);return r;}
+ @Test void existingAndNewMembersAppearButCancelledExpiredSupersededDoNot(){var active=member("ACTIVE",true);pending(active);pending(member("PENDING_REVIEW",false));pending(member("ACTIVE",false));var expired=pending(member("ACTIVE",true));expired.setDeleteAt(Instant.now().minusSeconds(1));var old=pending(member("ACTIVE",true));var newer=new SelfieReview();newer.setUserId(old.getUserId());em.persist(newer);assertEquals(2,service.pending(0).total());assertTrue(service.pending(0).items().stream().anyMatch(u->u.userId().equals(active.getId())));active.setSelfieRequired(false);assertEquals(1,service.pending(0).total());}
+}

@@ -38,6 +38,9 @@ public class JwtFilter extends OncePerRequestFilter {
 
             if (jwtUtil.validateToken(token)) {
                 String email = jwtUtil.getEmail(token);
+                String path=request.getRequestURI();
+                boolean allowed=path.equals("/api/user/me")||path.startsWith("/api/selfie")||path.startsWith("/api/auth/")||path.startsWith("/api/support/")||path.equals("/api/profile/me")||path.startsWith("/api/profile-images/")||path.startsWith("/api/account/")||path.startsWith("/api/media/");
+                if(jwtUtil.selfieRequired(email)&&!allowed){response.setStatus(409);response.setContentType("application/json;charset=UTF-8");response.getWriter().write("{\"code\":\"SELFIE_REQUIRED\",\"message\":\"운영자가 요청한 셀피 확인을 완료해 주세요.\"}");return;}
                 request.setAttribute("email", email);
 
                 UsernamePasswordAuthenticationToken authentication =

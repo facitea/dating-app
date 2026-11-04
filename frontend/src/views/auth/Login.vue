@@ -15,7 +15,7 @@
     </div>
     <dialog ref="linkDialog" class="login-sheet">
       <header class="sheet-header"><h2>기존 계정 연결</h2><button type="button" aria-label="닫기" @click="linkDialog.close()">×</button></header>
-      <p>{{ pendingGoogle?.email }} 계정이 있어요. 기존 비밀번호로 확인하면 구글 로그인도 사용할 수 있어요.</p>
+      <p>{{ linkKind==='email'?pendingEmail?.email:pendingGoogle?.email }} 계정이 있어요. 기존 자체 이메일 계정의 비밀번호로 확인하면 새 로그인 방식도 연결됩니다.</p>
       <form class="login-fields" @submit.prevent="linkGoogle"><label for="link-password">기존 계정 비밀번호</label><input id="link-password" v-model="linkPassword" type="password" autocomplete="current-password" required/><button class="login-submit" :disabled="googleBusy">연결하고 로그인</button><p v-if="googleMessage" role="alert">{{ googleMessage }}</p><RouterLink to="/reset-password">비밀번호 찾기</RouterLink></form>
     </dialog>
     <dialog ref="loginDialog" class="login-sheet" @click="closeOnBackdrop">
@@ -30,6 +30,7 @@
           autocomplete="current-password" placeholder="비밀번호"
           :aria-describedby="errorMessage ? 'login-error' : undefined" required />
         <p v-if="errorMessage" id="login-error" class="login-error" role="alert">{{ errorMessage }}</p>
+        <p v-if="emailNotice" role="status">{{emailNotice}}</p><div v-if="needsEmailVerification" class="email-verification"><button type="button" :disabled="loading" @click="resendVerification">인증 메일 다시 보내기</button><button type="button" :disabled="loading" @click="checkVerification">인증 완료 확인</button></div>
         <button class="login-submit" :disabled="loading">{{ loading ? '로그인 중…' : '로그인' }}</button>
       </form>
       <nav class="login-links" aria-label="계정 메뉴">
@@ -47,15 +48,17 @@ import { RouterLink, useRouter } from "vue-router";
 import { authClient } from "../../auth-client";
 import { clearToken, setAuthTokens } from "../../utils/auth";
 
+import {signInEmail,exchangeEmail,pendingEmail,resendEmailVerification,clearEmail,emailError} from '../../auth-client/emailAuth';
+const linkKind=ref('google'),needsEmailVerification=ref(false),emailNotice=ref('');
 import { beginGoogle, exchangeGoogle, clearGoogle, pendingGoogle, googleError } from '../../auth-client/googleAuth';
 const googleBusy=ref(false),googleMessage=ref(''),linkDialog=ref(),linkPassword=ref('');
 async function handleGoogle(data) {
   if(data.state==='SIGNUP_REQUIRED'){router.push('/signup?provider=google');return;}
-  if(data.state==='LINK_REQUIRED'){linkPassword.value='';if(!linkDialog.value.open)linkDialog.value.showModal();return;}
+  if(data.state==='LINK_REQUIRED'){linkKind.value='google';linkPassword.value='';if(!linkDialog.value.open)linkDialog.value.showModal();return;}
   if(data.auth){moveAfterLogin(data.auth);await clearGoogle();}
 }
 async function googleLogin(){if(googleBusy.value)return;googleBusy.value=true;googleMessage.value='';try{await handleGoogle(await beginGoogle());}catch(e){googleMessage.value=googleError(e);}finally{googleBusy.value=false;}}
-async function linkGoogle(){if(googleBusy.value)return;googleBusy.value=true;googleMessage.value='';try{await handleGoogle(await exchangeGoogle(linkPassword.value));}catch(e){googleMessage.value=googleError(e);}finally{googleBusy.value=false;linkPassword.value='';}}
+async function linkGoogle(){if(googleBusy.value)return;googleBusy.value=true;googleMessage.value='';try{if(linkKind.value==='email')await handleEmail(await exchangeEmail(linkPassword.value));else await handleGoogle(await exchangeGoogle(linkPassword.value));}catch(e){googleMessage.value=linkKind.value==='email'?emailError(e):googleError(e);}finally{googleBusy.value=false;linkPassword.value='';}}
 const router = useRouter();
 const loading = ref(false);
 const loginDialog = ref(null);
@@ -82,7 +85,7 @@ function resolveLoginErrorMessage(error) {
   if (serverMessage) return serverMessage;
   if (status === 400 || status === 401) return "이메일 또는 비밀번호를 다시 확인해 주세요.";
   if (status === 403) return "현재 로그인할 수 없는 계정 상태입니다. 운영 정책 또는 심사 상태를 확인해 주세요.";
-  return "로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+  return emailError(error);
 }
 
 function resolveLoginFocusField(error, message) {
@@ -144,6 +147,14 @@ function getLoginValidationError() {
   return null;
 }
 
+async function handleEmail(data){
+ if(data.state==='VERIFY_EMAIL'){needsEmailVerification.value=true;emailNotice.value='받은 인증 메일의 링크를 누른 뒤 인증 완료 확인을 눌러 주세요.';return;}
+ if(data.state==='SIGNUP_REQUIRED'){loginDialog.value?.close();router.push('/signup?provider=email');return;}
+ if(data.state==='LINK_REQUIRED'){linkKind.value='email';linkPassword.value='';googleMessage.value='';loginDialog.value?.close();if(!linkDialog.value.open)linkDialog.value.showModal();return;}
+ if(data.auth){linkDialog.value?.close();loginDialog.value?.close();moveAfterLogin(data.auth);await clearEmail();}
+}
+async function resendVerification(){loading.value=true;errorMessage.value='';try{await resendEmailVerification();emailNotice.value='인증 메일을 보냈어요. 스팸함도 확인해 주세요.';}catch(e){errorMessage.value=emailError(e);}finally{loading.value=false;}}
+async function checkVerification(){loading.value=true;errorMessage.value='';try{await handleEmail(await exchangeEmail());}catch(e){errorMessage.value=emailError(e);}finally{loading.value=false;}}
 const login = async () => {
   loading.value = true;
   errorMessage.value = "";
@@ -156,8 +167,15 @@ const login = async () => {
       return;
     }
 
-    const data = await authClient.login(form);
-    moveAfterLogin(data);
+    needsEmailVerification.value=false;emailNotice.value='';
+    try { await handleEmail(await signInEmail(form.email,form.password)); }
+    catch(e){
+      if(['auth/invalid-credential','auth/user-not-found','auth/wrong-password'].includes(e.code)){
+        // Compatibility only: authenticate an existing legacy account; never create/link it by email alone.
+        try{const data=await authClient.login(form);moveAfterLogin(data);return;}catch(legacy){if(legacy.response?.status===403||legacy.response?.status===429)throw legacy;}
+      }
+      throw e;
+    }
   } catch (error) {
     clearToken();
     const message = resolveLoginErrorMessage(error);
@@ -172,7 +190,7 @@ const login = async () => {
 
 </script>
 
-<style scoped>
+<style scoped>.email-verification{display:flex;gap:8px;flex-wrap:wrap}.email-verification button{padding:10px;border:1px solid #ddd;border-radius:10px;background:white;color:#805b48}
 .google-enter{min-height:56px;border:1px solid #dadce0;border-radius:999px;background:white;color:#1f1f1f;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:6px}
 .google-enter:disabled{opacity:.65;cursor:wait}.google-error{font-size:13px;line-height:1.6;color:#712c20;margin:4px 0 10px}
 

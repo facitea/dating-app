@@ -19,7 +19,7 @@ npm run android:sync
 
 다른 PC에서는 android/local.properties에 Android SDK 경로를 설정한다. 공개 배포 시 ANDROID_API_URL을 HTTPS 서버로 바꾼다. 로컬 HTTP는 debug 전용 네트워크 설정의 지정 호스트만 허용한다. HTTP 주소로 동기화한 리소스는 release 빌드를 차단한다. 서명 키, local.properties, google-services.json, 빌드 산출물은 Git에 올리지 않는다.
 
-## Firebase Android 설정 (현재 미완료)
+## Firebase Android 설정 (2026-11-04 등록 완료, 아래 재설정 절차 참고)
 
 1. 기존 dating-260d2 프로젝트에 Android 앱을 추가한다. 패키지명은 com.facitea.geureomuri.
 2. 이 PC 테스트 서명 SHA-1: F1:26:7E:EC:3A:29:23:42:7D:5A:D7:93:2C:C3:F6:08:96:D7:F5:20
@@ -43,3 +43,16 @@ npm run android:sync
 - 크레딧은 기존 테스트 충전이며 실제 앱 결제/스토어 출시 서명은 포함하지 않는다.
 
 새 PC에서는 위 SHA 지문을 재사용하지 말고 본인의 debug 서명 지문을 확인한다. 현재 코드로 APK를 새로 빌드해야 최신 UI 수정이 포함된다.
+
+
+## 2026-11-04 Android 로그인 / 웹 병행 빌드
+- Firebase Android 앱 `com.facitea.geureomuri` 등록, 이 PC debug SHA-1/SHA-256 등록 완료. 앱 ID `1:589048607927:android:1a8adf8995cfebf26f0932`. 무료 Spark 유지.
+- 공식 Firebase Management API로 `frontend/android/app/google-services.json` 저장. Git 제외 유지. 웹 Firebase 앱/도메인/로그인 공급자 유지.
+- `npm run build` -> `frontend/dist` (웹), `npm run android:sync` -> `frontend/dist-android` (앱), Capacitor webDir=dist-android. 앱 빌드 전후 웹 index 해시 동일 확인. 웹 배포는 반드시 dist만 사용.
+- Android 빌드는 Firebase 설정 누락 및 웹 OAuth client 누락 시 실패하도록 변경. native Google 로그인, 웹 popup 로그인 분기 유지. 테스트 versionCode=2, versionName=1.0.1-test.
+- 공통 API 로그인 갱신을 single-flight로 변경. 동시 401 요청 시 한 번만 쿠키 갱신. 일시적 네트워크 오류는 저장된 세션을 삭제하지 않고, refresh 401/403만 삭제.
+- Android CAMERA 권한 추가: getUserMedia 셀피 촬영 지원. 실기기 권한 허용/카메라/구글 계정 선택은 기기 미연결로 아직 검증 불가.
+- 사진 원본 10MB 선택 제한/문구 제거. crop preview 최대 2048px, 서버 업로드는 600x600 JPEG quality .9. 12,979,946-byte PNG가 브라우저에서 230,490-byte JPEG로 변환됨. 서버 직접 호출용 multipart/이미지 보호 상한은 그대로 유지(프런트 압축 우회 방지).
+- 웹 build / Android assembleDebug / APK signature 검증 완료. `node --experimental-vm-modules scripts/test-session.mjs`로 동시 갱신·오프라인·인증 만료·무한 재시도 방지 검증.
+- APK는 테스트용 debug 서명. FCM native push는 아직 미구현, 기존 앱 내 알림함 사용. 실제 결제 없음.
+- AWS release `/srv/geureomuri/releases/android-login-20261104` (기존 photo-duplicates-20261104). GitHub push 안 함.

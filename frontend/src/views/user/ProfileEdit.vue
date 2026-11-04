@@ -12,7 +12,7 @@
         </div>
       </header>
 
-      <p class="review-hint">승인된 회원의 프로필·사진 변경은 재심사 후 공개됩니다. 승인 전에는 기존 내용이 보입니다.</p><PhotoEditor/>
+      <p class="review-hint">자기소개를 포함한 프로필·사진 변경은 심사 후 상대에게 공개돼요. 심사 중에는 상대에게 기존 승인 내용이 보여요.</p><PhotoEditor/>
       <section class="page-card">
         <form class="profile-form" @submit.prevent="saveProfile">
           <label>
@@ -106,10 +106,11 @@
             </label>
           </div>
 
+          <p class="review-hint">자기소개도 심사 대상이에요. 변경 내용은 심사 후 상대에게 공개돼요.</p>
           <button class="primary-button" :disabled="saving">{{ saving ? "저장 중..." : "프로필 저장" }}</button>
         </form>
 
-        <p v-if="saveMessage" class="message success">{{ saveMessage }}</p>
+        <p v-if="saveMessage" class="message success" role="status">{{ saveMessage }}</p>
         <p v-if="saveError" class="message error">{{ saveError }}</p>
       </section>
     </div>
@@ -295,8 +296,8 @@ async function saveProfile() {
 
     const { data } = await api.put("/profile/me", payload);
     hydrateForm(data);
-    saveMessage.value = "프로필을 저장했어요.";
-    setTimeout(() => router.push("/profile"), 500);
+    saveMessage.value = "저장했어요. 자기소개를 포함한 변경 내용은 심사 후 상대에게 공개돼요. 이전에 승인된 내용은 심사가 끝날 때까지 유지돼요.";
+
   } catch (error) {
     saveError.value = error.response?.data?.message || "프로필 저장에 실패했습니다.";
   } finally {

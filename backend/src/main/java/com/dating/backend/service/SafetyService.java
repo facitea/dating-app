@@ -35,6 +35,7 @@ import java.util.Locale;
 public class SafetyService {
 
     private final com.dating.backend.matching.InboxService inbox;
+    private final com.dating.backend.matching.ReportConversationService conversations;
     private final com.dating.backend.matching.SanctionService sanctions;
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     private final UserRepository userRepository;
@@ -58,9 +59,11 @@ public class SafetyService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 처리되지 않은 신고가 존재합니다.");
         }
 
+        String selectedIds=conversations.validate(reporter.getId(),reportedUser.getId(),request.getMessageIds());
         UserReport saved = userReportRepository.save(UserReport.builder()
                 .reporterUserId(reporter.getId())
                 .reportedUserId(reportedUser.getId())
+                .selectedMessageIds(selectedIds)
                 .reasonCode(request.getReasonCode())
                 .detail(request.getDetail())
                 .build());

@@ -1,0 +1,7 @@
+<template><section class="social-page"><header class="utility-header"><button @click="router.back()">‹</button><h1>셀피 확인</h1></header><p>프로필 사진과 셀피를 관리자가 비교합니다.</p><p>{{labels[status?.state]||'아직 제출하지 않았어요.'}}</p><p v-if="status?.note">{{status.note}}</p><p v-if="status?.deleteAt">사진 보관 종료: {{new Date(status.deleteAt).toLocaleString('ko-KR')}}</p><button :disabled="status?.state==='PENDING'" @click="capture.open()">셀피 촬영하기</button><button v-if="status?.photosAvailable" @click="withdraw">동의 철회·사진 삭제</button><p v-if="error" role="alert">{{error}}</p><SelfieCaptureDialog ref="capture" @submitted="load"/></section></template><script setup>
+import {ref,onMounted} from 'vue';import {useRouter} from 'vue-router';import api from '../../api/api';import SelfieCaptureDialog from '../../components/SelfieCaptureDialog.vue';import '../../components/social.css';
+const router=useRouter(),status=ref(),capture=ref(),error=ref('');const labels={PENDING:'관리자 심사 중',APPROVED:'수동 확인 완료',RETRY:'보완 요청',PHOTO_CHANGED:'대표 사진 변경 · 다시 촬영해 주세요',CAPTURE:'촬영 대기',WITHDRAWN:'동의 철회됨',EXPIRED:'보관 기한 만료'};
+async function load(){try{status.value=(await api.get('/selfie')).data;}catch{error.value='상태를 불러오지 못했습니다.';}}
+async function withdraw(){if(!window.confirm('셀피 동의를 철회하고 사진 삭제를 요청할까요? 가입심사 중이면 셀피 재제출 전에는 승인받을 수 없습니다.'))return;try{await api.delete('/selfie');await load();}catch(e){error.value=e.response?.data?.message||'삭제 요청에 실패했습니다.';}}
+onMounted(load);
+</script>

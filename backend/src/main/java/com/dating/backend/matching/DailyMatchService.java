@@ -181,7 +181,7 @@ public class DailyMatchService {
                 || other.getBirthDate().isAfter(day.minusYears(18))) return null;
         String expected = "MALE".equals(mine.getGender()) ? "FEMALE" : "FEMALE".equals(mine.getGender()) ? "MALE" : "";
         if (expected.isEmpty() || !expected.equals(other.getGender())) return null;
-        long reports = em.createQuery("select count(r) from UserReport r where (r.reporterUserId = :owner and r.reportedUserId = :other) or (r.reporterUserId = :other and r.reportedUserId = :owner)", Long.class)
+        long reports = em.createQuery("select count(r) from UserReport r where r.contactReleasedAt is null and ((r.reporterUserId = :owner and r.reportedUserId = :other) or (r.reporterUserId = :other and r.reportedUserId = :owner))", Long.class)
                 .setParameter("owner", owner).setParameter("other", id).getSingleResult();
         if (reports > 0) return null;
         if(em.createQuery("select count(r) from ChatRoom r where (r.ended=true or (r.matched=true and :existing=false)) and r.lowId=:a and r.highId=:b",Long.class).setParameter("existing",existingCard).setParameter("a",Math.min(owner,id)).setParameter("b",Math.max(owner,id)).getSingleResult()>0)return null;

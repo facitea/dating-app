@@ -25,6 +25,10 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class UserReport {
+    @Column(length=600) private String selectedMessageIds;
+    private java.time.Instant contactReleasedAt;
+    private Long contactReleasedBy;
+    @Column(length=200) private String contactReleaseReason;
     private String resolutionAction;
     private Integer suspensionDays;
     private java.time.Instant resolvedAt;

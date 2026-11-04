@@ -11,6 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class UserReportRequest {
+    private java.util.List<Long> messageIds;
 
     @NotNull(message = "신고 대상 유저 ID를 입력해 주세요.")
     // 신고 대상 유저 ID

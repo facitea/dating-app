@@ -35,6 +35,8 @@ public class ProfileImageService {
     private final UserProfileRepository userProfileRepository;
     private final UserVerificationRepository userVerificationRepository;
     private final AccountReviewPolicyService accountReviewPolicyService;
+    private final com.dating.backend.matching.SelfieReviewService selfies;
+    private final com.dating.backend.matching.ProfilePhotoHistoryService photoHistory;
 
     @Transactional(readOnly = true)
     public List<UserProfileImageResponse> getMyImages(String email) {
@@ -71,6 +73,7 @@ public class ProfileImageService {
                         .imageOrder(request.getImageOrder())
                         .build());
 
+        if(!java.util.Objects.equals(image.getImageUrl(),request.getImageUrl()))photoHistory.archive(user.getId(),image.getImageUrl(),"REPLACED");
         image.setImageUrl(request.getImageUrl());
         image.setIsMain(Boolean.TRUE.equals(request.getIsMain()));
         userProfileImageRepository.saveAndFlush(image);
@@ -86,6 +89,7 @@ public class ProfileImageService {
         if(!u.getId().equals(image.getUserId()))throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         if("ACTIVE".equals(u.getStatus())&&userProfileImageRepository.countByUserId(u.getId())<=1)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"대표사진 1장은 유지해 주세요. 사진을 눌러 교체할 수 있습니다.");
         moderation.beforeEdit(u);
+        photoHistory.archive(u.getId(),image.getImageUrl(),"DELETED");
         userProfileImageRepository.delete(image);userProfileImageRepository.flush();ensureMainImage(u.getId());refreshReviewProgress(u);return getMyImages(email);
     }
     @Transactional public List<UserProfileImageResponse> main(String email,Long id){
@@ -152,6 +156,7 @@ public class ProfileImageService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "대표 사진 포함 최소 2장을 등록해야 심사를 신청할 수 있습니다.");
         }
 
+        selfies.requireSignup(user.getId(),false);
         boolean wasRejected = "REJECTED".equals(user.getStatus());
         user.setStatus("PENDING_REVIEW");
         user.setProfileCompletedAt(LocalDateTime.now());

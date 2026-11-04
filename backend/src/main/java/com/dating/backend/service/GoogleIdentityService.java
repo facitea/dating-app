@@ -15,14 +15,14 @@ public class GoogleIdentityService {
     @Value("${app.firebase.project-id:}") private String projectId;
     @Value("${app.firebase.credentials-file:}") private String credentialsFile;
     private FirebaseAuth auth;
-    public record Identity(String uid, String email) {}
+    public record Identity(String uid, String email,String provider) { public Identity(String uid,String email){this(uid,email,"google.com");} }
     private synchronized FirebaseAuth auth() {
         if(projectId.isBlank()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"구글 로그인을 준비 중입니다. 이메일 로그인을 이용해 주세요.");
         if(auth==null) try {
             var options=FirebaseOptions.builder().setProjectId(projectId).setCredentials(credentials()).build();
             var app=FirebaseApp.getApps().stream().filter(a->a.getName().equals("dating-auth")).findFirst().orElseGet(()->FirebaseApp.initializeApp(options,"dating-auth"));
             auth=FirebaseAuth.getInstance(app);
-        } catch(Exception e) { throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"구글 로그인 서버 설정을 확인해 주세요."); }
+        } catch(Exception e) { throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Firebase 로그인 서버 설정을 확인해 주세요."); }
         return auth;
     }
     private GoogleCredentials credentials() throws java.io.IOException {
@@ -31,17 +31,20 @@ public class GoogleIdentityService {
             return GoogleCredentials.fromStream(stream);
         }
     }
-    public Identity verify(String token) {
-        if(token==null||token.isBlank()||token.length()>16000) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"구글 인증을 다시 진행해 주세요.");
+    public FirebaseApp firebaseApp() { auth(); return FirebaseApp.getInstance("dating-auth"); }
+    public Identity verify(String token) { return verifyProvider(token,"google.com"); }
+    public Identity verifyPassword(String token) { return verifyProvider(token,"password"); }
+    private Identity verifyProvider(String token,String provider) {
+        if(token==null||token.isBlank()||token.length()>16000) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Firebase 인증을 다시 진행해 주세요.");
         var verifier=auth();
         try {
             var decoded=verifier.verifyIdToken(token,true);
             var firebase=decoded.getClaims().get("firebase");
-            if(!(firebase instanceof Map<?,?> claims)||!"google.com".equals(claims.get("sign_in_provider"))||!decoded.isEmailVerified()||decoded.getEmail()==null)
+            if(!(firebase instanceof Map<?,?> claims)||!provider.equals(claims.get("sign_in_provider"))||!decoded.isEmailVerified()||decoded.getEmail()==null)
                 throw new IllegalArgumentException();
             var authTime=decoded.getClaims().get("auth_time");
             if(!(authTime instanceof Number n)||n.longValue()>java.time.Instant.now().getEpochSecond()+60||n.longValue()<java.time.Instant.now().minusSeconds(3600).getEpochSecond())throw new IllegalArgumentException();
-            return new Identity(decoded.getUid(),decoded.getEmail());
-        } catch(Exception e) { throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"구글 인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요."); }
+            return new Identity(decoded.getUid(),decoded.getEmail(),provider);
+        } catch(Exception e) { throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Firebase 인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요."); }
     }
 }

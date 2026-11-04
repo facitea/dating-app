@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import api from "../api/api";
 import { hasToken } from "../utils/auth";
 import AdminReviews from "../views/admin/AdminReviews.vue";
 import ScamMonitor from "../views/admin/ScamMonitor.vue";
@@ -33,9 +34,10 @@ const routes = [
   { path: "/admin/login", redirect: "/admin/overview" },
   { path: "/admin/:section", component: AdminConsole },
   { path: "/signup", component: Signup, meta: { guestOnly: true } },
-  { path: "/reset-password", component: ResetPassword, meta: { guestOnly: true } },
+  { path: "/reset-password", component: ResetPassword },
   { path: "/review-pending", component: ReviewPending, meta: { requiresAuth: true } },
-  { path: "/signup-complete", component: SignupComplete, meta: { requiresAuth: true } },
+  { path: "/signup-complete", redirect: "/today" },
+  { path: "/selfie-required", component: () => import("../views/user/SelfieRequired.vue"), meta: { requiresAuth: true } },
   { path: "/social-login", component: SocialLogin },
   {
     path: "/app",
@@ -53,6 +55,7 @@ const routes = [
       { path: "/credits", component: Credits },
       { path: "/profile/photos", component: Photos },
       { path: "/settings", component: Settings },
+      { path: "/profile/selfie", redirect: "/selfie-required" },
       { path: "/profile", component: Profile },
       { path: "/profile/edit", component: ProfileEdit },
       { path: "/profile/phone", component: ProfilePhoneVerify },
@@ -66,7 +69,8 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
+  if(hasToken()&&!to.path.startsWith("/admin")&&!["/selfie-required","/support","/legal","/settings","/profile/photos"].includes(to.path)){try{if((await api.get("/selfie/request")).data.required)return "/selfie-required";}catch{/* Existing auth guard handles expired sessions. */}}
   if (to.meta.requiresAuth && !hasToken()) {
     return "/";
   }

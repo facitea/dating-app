@@ -79,12 +79,13 @@
       </div>
       <p v-if="errorMessage" class="match-error" role="alert">{{ errorMessage }} <button type="button" @click="loadDeck">다시 확인</button></p>
     </template>
-    <dialog ref="extraModal" class="social-dialog" @cancel="extraBusy&&$event.preventDefault()"><h2>추가 인연 열기</h2><template v-if="extraQuote"><p>10크레딧으로 오늘의 인연 1장을 추가로 엽니다.</p><p>보유 {{extraQuote.balance}}크레딧 · 다음 오전 8시 초기화</p><p>이미 소개한 상대는 제외하며, 조건에 맞는 새 인연이 없으면 차감되지 않습니다.</p><RouterLink v-if="extraQuote.balance<10" to="/credits">크레딧 충전하기</RouterLink><button :disabled="extraBusy" @click="extraModal.close()">취소</button><button class="retry-button" :disabled="extraBusy||extraQuote.balance<10" @click="buyExtra">{{extraBusy?'처리 중…':'10크레딧 사용 후 열기'}}</button></template><p v-if="extraError" role="alert">{{extraError}}</p></dialog>
+    <dialog ref="extraModal" class="social-dialog" @cancel="extraBusy&&$event.preventDefault()"><h2>추가 인연 열기</h2><template v-if="extraQuote"><p>10크레딧으로 오늘의 인연 1장을 추가로 엽니다.</p><p>보유 {{extraQuote.balance}}크레딧 · 다음 오전 8시 초기화</p><p>이미 소개한 상대는 제외하며, 조건에 맞는 새 인연이 없으면 차감되지 않습니다.</p><button :disabled="extraBusy" @click="extraModal.close()">취소</button><button class="retry-button" :disabled="extraBusy||extraQuote.balance<10" @click="buyExtra">{{extraBusy?'처리 중…':'10크레딧 사용 후 열기'}}</button></template><p v-if="extraError" role="alert">{{extraError}}</p></dialog>
     <DirectMessageDialog ref="direct" /><MemberActions ref="actions" @changed="loadDeck"/>
   </section>
 </template>
 
 <script setup>
+import {showCreditPrompt,isInsufficientCredit} from "../../components/creditPrompt";
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import api from '../../api/api';
 import {requestId} from '../../components/requestId';
@@ -95,8 +96,8 @@ import MemberActions from '../../components/MemberActions.vue';
 const direct = ref(),actions=ref();
 
 const extraModal=ref(),extraQuote=ref(),extraBusy=ref(false),extraError=ref('');let pendingExtra;
-async function openExtra(){if(extraBusy.value)return;extraBusy.value=true;extraError.value='';try{extraQuote.value=(await api.get('/matches/today/extra')).data;if(!pendingExtra||pendingExtra.cycleDay!==extraQuote.value.cycleDay)pendingExtra={cycleDay:extraQuote.value.cycleDay,expectedCost:extraQuote.value.cost,requestId:requestId()};extraModal.value.showModal();}catch(e){errorMessage.value=e.response?.data?.message||'가격을 불러오지 못했어요.';}finally{extraBusy.value=false;}}
-async function buyExtra(){if(extraBusy.value||!extraQuote.value)return;extraBusy.value=true;extraError.value='';try{const {data}=await api.post('/matches/today/extra',pendingExtra);pendingExtra=null;await loadDeck();extraModal.value.close();await nextTick();goTo(deck.value.cards.findIndex(c=>c.slot===data.slot));}catch(e){extraError.value=e.response?.data?.message||'결과를 확인하지 못했어요. 다시 눌러도 중복 차감되지 않습니다.';}finally{extraBusy.value=false;}}
+async function openExtra(){if(extraBusy.value)return;extraBusy.value=true;extraError.value='';try{extraQuote.value=(await api.get('/matches/today/extra')).data;if(extraQuote.value.balance<extraQuote.value.cost){showCreditPrompt();return;}if(!pendingExtra||pendingExtra.cycleDay!==extraQuote.value.cycleDay)pendingExtra={cycleDay:extraQuote.value.cycleDay,expectedCost:extraQuote.value.cost,requestId:requestId()};extraModal.value.showModal();}catch(e){errorMessage.value=e.response?.data?.message||'가격을 불러오지 못했어요.';}finally{extraBusy.value=false;}}
+async function buyExtra(){if(extraBusy.value||!extraQuote.value)return;extraBusy.value=true;extraError.value='';try{const {data}=await api.post('/matches/today/extra',pendingExtra);pendingExtra=null;await loadDeck();extraModal.value.close();await nextTick();goTo(deck.value.cards.findIndex(c=>c.slot===data.slot));}catch(e){if(isInsufficientCredit(e)){extraModal.value.close();showCreditPrompt();return;}extraError.value=e.response?.data?.message||'결과를 확인하지 못했어요. 다시 눌러도 중복 차감되지 않습니다.';}finally{extraBusy.value=false;}}
 const configured = ref(null);
 function conditionsSaved(data) { configured.value=data.configured; if(!deck.value)loadDeck(); }
 const deck = ref(null);

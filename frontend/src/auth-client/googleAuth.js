@@ -1,14 +1,14 @@
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, setPersistence, inMemoryPersistence, signOut } from 'firebase/auth';
+import {firebaseAuth,firebaseConfigured,firebasePersistence} from './firebaseCore';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { ref } from 'vue';
 import api from '../api/api';
-const config={apiKey:import.meta.env.VITE_FIREBASE_API_KEY,authDomain:import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,projectId:import.meta.env.VITE_FIREBASE_PROJECT_ID,appId:import.meta.env.VITE_FIREBASE_APP_ID};
+
 const native=Capacitor.isNativePlatform();
-export const googleConfigured=native?import.meta.env.VITE_NATIVE_FIREBASE==='true':Object.values(config).every(Boolean);
-const auth=!native&&googleConfigured?getAuth(initializeApp(config)):null;
-const persistence=auth?setPersistence(auth,inMemoryPersistence):Promise.resolve();
+export const googleConfigured=native?import.meta.env.VITE_NATIVE_FIREBASE==='true':firebaseConfigured;
+const auth=firebaseAuth;
+const persistence=firebasePersistence;
 export const pendingGoogle=ref(null);
 export async function beginGoogle() {
   if(native){if(!googleConfigured)throw new Error('Firebase 안드로이드 앱 설정이 필요합니다. 이메일 로그인을 이용해 주세요.');const result=await FirebaseAuthentication.signInWithGoogle();pendingGoogle.value={native:true,email:result.user?.email};return exchangeGoogle();}
@@ -21,7 +21,7 @@ export async function beginGoogle() {
 }
 export async function googleToken() {
   if(!pendingGoogle.value)throw new Error('구글 인증을 다시 진행해 주세요.');
-  if(pendingGoogle.value.native)return (await FirebaseAuthentication.getIdToken({forceRefresh:true})).token;
+  if(pendingGoogle.value.native){const {token}=await FirebaseAuthentication.getIdToken({forceRefresh:true});if(!token)throw new Error('구글 인증을 다시 진행해 주세요.');return token;}
   return pendingGoogle.value.user.getIdToken(true);
 }
 export async function exchangeGoogle(existingPassword) {

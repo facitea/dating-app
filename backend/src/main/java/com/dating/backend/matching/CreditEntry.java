@@ -8,6 +8,8 @@ public class CreditEntry {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
     private Long userId;
     private int amount;
+    @Column(length=1000) private String message;
+    private Long adminId;
     @Column(length=80) private String referenceKey;
     private Instant createdAt=Instant.now();
 }

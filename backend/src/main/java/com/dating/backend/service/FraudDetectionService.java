@@ -26,6 +26,7 @@ public class FraudDetectionService {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final FraudRiskLogRepository fraudRiskLogRepository;
+    private final com.dating.backend.matching.SafetyEventService safetyEvents;
 
     @Transactional
     public void evaluateUserProfile(Long userId) {
@@ -77,10 +78,7 @@ public class FraudDetectionService {
         user.setFraudRiskScore(score);
         user.setFraudReviewStatus(nextStatus);
 
-        if ("HIGH_RISK".equals(nextStatus) && "ACTIVE".equals(user.getStatus())) {
-            user.setStatus("SUSPENDED");
-            user.setReviewComment("스캠 의심 계정으로 분류되어 계정이 일시 정지되었습니다.");
-        }
+        // Keyword matches are review signals, never proof of fraud or an automatic suspension.
 
         userRepository.save(user);
 
@@ -89,6 +87,7 @@ public class FraudDetectionService {
                     ? "스캠 의심 신호가 감지되었지만 구체 키워드는 없습니다."
                     : "스캠 의심 키워드: " + String.join(", ", matchedKeywords);
 
+            safetyEvents.record(userId,null,null,"PROFILE_KEYWORD",detail,score);
             fraudRiskLogRepository.save(FraudRiskLog.builder()
                     .userId(userId)
                     .riskType("PROFILE_KEYWORD")

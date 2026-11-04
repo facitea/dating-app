@@ -59,10 +59,11 @@ public class AuthService {
     public AuthResponse signup(SignupRequest request) {
         if(!request.isAgreedToTerms()||!request.isAgreedToPrivacy()||!request.isAdultConfirmed()||!"2026-11-02-traits-test".equals(request.getTermsVersion()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"필수 약관과 최신 버전 동의를 확인해 주세요.");
         validateAdultSignup(request);
-        var google=request.getFirebaseIdToken()==null||request.getFirebaseIdToken().isBlank()?null:googleIdentity.verify(request.getFirebaseIdToken());
+        var google=request.getFirebaseIdToken()==null||request.getFirebaseIdToken().isBlank()?null:("PASSWORD".equals(request.getFirebaseProvider())?googleIdentity.verifyPassword(request.getFirebaseIdToken()):googleIdentity.verify(request.getFirebaseIdToken()));
         if(google!=null) {
             request.setEmail(google.email());
-            if(userRepository.findByFirebaseUid(google.uid()).isPresent())throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 가입된 구글 계정입니다. 로그인해 주세요.");
+            blockedIdentityService.validateSanction(google.email(),google.uid());
+            if(userRepository.findByFirebaseUid(google.uid()).isPresent())throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 가입된 Firebase 계정입니다. 로그인해 주세요.");
         } else authVerificationService.validateSignupEmailVerified(request.getEmail(), request.getEmailVerificationToken());
         blockedIdentityService.validateSignupAllowed(request.getEmail(), null);
 
@@ -79,6 +80,7 @@ public class AuthService {
         }
 
         if (existingUser != null) {
+            sanctions.expire(existingUser.getId());
             if(google!=null||existingUser.getFirebaseUid()!=null)throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 가입된 이메일입니다. 기존 계정으로 로그인 후 연결해 주세요.");
             if("SUSPENDED".equals(existingUser.getStatus())||existingUser.getSanctionType()!=null)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"정지된 계정은 다시 가입할 수 없습니다.");
             if (hasLocalPassword(existingUser)) {
@@ -107,7 +109,7 @@ public class AuthService {
         User user = User.builder()
                 .email(request.getEmail())
                 .nickname(request.getNickname())
-                .provider(google==null?PROVIDER_LOCAL:"GOOGLE")
+                .provider(google==null?PROVIDER_LOCAL:"password".equals(google.provider())?"FIREBASE_EMAIL":"GOOGLE")
                 .firebaseUid(google==null?null:google.uid())
                 .status("PENDING_REVIEW")
                 .reviewComment("회원 가입 심사 대기 중입니다. 3일 내에 사진 등록과 프로필 입력을 완료해 주세요.")
@@ -125,23 +127,28 @@ public class AuthService {
     public record GoogleResult(String state,String email,AuthResponse auth) {}
     @Transactional
     public GoogleResult googleLogin(String idToken,String existingPassword) {
-        var identity=googleIdentity.verify(idToken);
+        return firebaseLogin(googleIdentity.verify(idToken),existingPassword);
+    }
+    @Transactional
+    public GoogleResult firebaseEmailLogin(String idToken,String existingPassword){return firebaseLogin(googleIdentity.verifyPassword(idToken),existingPassword);}
+    private GoogleResult firebaseLogin(GoogleIdentityService.Identity identity,String existingPassword){
+        blockedIdentityService.validateSanction(identity.email(),identity.uid());
         var user=userRepository.findByFirebaseUid(identity.uid()).orElse(null);
         if(user==null) {
             user=userRepository.findByEmail(identity.email()).orElse(null);
             if(user==null) {blockedIdentityService.validateSignupAllowed(identity.email(),null);return new GoogleResult("SIGNUP_REQUIRED",identity.email(),null);}
             if(existingPassword==null||existingPassword.isBlank())return new GoogleResult("LINK_REQUIRED",identity.email(),null);
             // Prove control of the existing account before linking; keep its profile and credits.
-            if(user.getFirebaseUid()!=null)throw new ResponseStatusException(HttpStatus.CONFLICT,"다른 구글 계정이 연결되어 있습니다.");
+            if(user.getFirebaseUid()!=null)throw new ResponseStatusException(HttpStatus.CONFLICT,"다른 Firebase 계정이 연결되어 있습니다.");
             var request=new AuthRequest();request.setEmail(user.getEmail());request.setPassword(existingPassword);
             var auth=login(request);
             em.lock(user,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
-            if(user.getFirebaseUid()!=null&&!user.getFirebaseUid().equals(identity.uid()))throw new ResponseStatusException(HttpStatus.CONFLICT,"다른 구글 계정이 연결되어 있습니다.");
+            if(user.getFirebaseUid()!=null&&!user.getFirebaseUid().equals(identity.uid()))throw new ResponseStatusException(HttpStatus.CONFLICT,"다른 Firebase 계정이 연결되어 있습니다.");
             user.setFirebaseUid(identity.uid());
             return new GoogleResult("AUTHENTICATED",user.getEmail(),auth);
         }
         sanctions.expire(user.getId());blockedIdentityService.validateLoginAllowed(user);
-        if("SUSPENDED".equals(user.getStatus())||"DELETED".equals(user.getStatus())||"HIGH_RISK".equals(user.getFraudReviewStatus()))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"이용이 제한된 계정입니다. 고객센터에 문의해 주세요.");
+        if("SUSPENDED".equals(user.getStatus())||"DELETED".equals(user.getStatus()))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"이용이 제한된 계정입니다. 고객센터에 문의해 주세요.");
         return new GoogleResult("AUTHENTICATED",user.getEmail(),buildAuthResponse(user));
     }
 
@@ -169,9 +176,7 @@ public class AuthService {
             throw new FocusableResponseStatusException(HttpStatus.FORBIDDEN, "탈퇴한 계정입니다. 다시 가입해 주세요.", "email");
         }
 
-        if ("HIGH_RISK".equals(user.getFraudReviewStatus())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "스캠 의심 계정으로 분류되어 로그인할 수 없습니다.");
-        }
+        // Keyword scores alone do not block login; explicit account sanctions still do.
 
         if (!hasLocalPassword(user)) {
             throw new FocusableResponseStatusException(
