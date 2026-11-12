@@ -15,6 +15,10 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("update User u set u.lastActiveAt=:now where u.id=:id and (u.lastActiveAt is null or u.lastActiveAt<:cutoff)")
+    void touchActivity(@org.springframework.data.repository.query.Param("id") Long id,@org.springframework.data.repository.query.Param("now") java.time.Instant now,@org.springframework.data.repository.query.Param("cutoff") java.time.Instant cutoff);
     Optional<User> findByFirebaseUid(String firebaseUid);
 
     boolean existsByEmail(String email);

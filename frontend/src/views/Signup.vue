@@ -13,36 +13,18 @@
 
         <label>
           <span>닉네임</span>
-          <input
-            ref="nicknameInput"
-            v-model.trim="form.nickname"
-            type="text"
-            placeholder="서비스에 표시될 이름"
-            required
-          />
+          <input ref="nicknameInput" v-model.trim="form.nickname" type="text" placeholder="서비스에 표시될 이름" required />
         </label>
 
         <label>
           <span>이메일</span>
-          <input
-            ref="emailInput"
-            v-model.trim="form.email"
-            type="email"
-            placeholder="you@example.com"
-            required
-          />
+          <input ref="emailInput" v-model.trim="form.email" type="email" placeholder="you@example.com" required />
         </label>
 
         <label>
           <span>비밀번호</span>
-          <input
-            ref="passwordInput"
-            v-model="form.password"
-            type="password"
-            placeholder="8자 이상 입력"
-            required
-            minlength="8"
-          />
+          <input ref="passwordInput" v-model="form.password" type="password" placeholder="8자 이상 입력" required
+            minlength="8" />
         </label>
 
         <div class="section-title">기본 프로필 정보</div>
@@ -71,13 +53,8 @@
 
           <label>
             <span>거주 구/군</span>
-            <select
-              ref="regionDistrictSelect"
-              v-model="selectedRegionDistrict"
-              @change="updateRegion"
-              :disabled="!selectedRegionCity"
-              required
-            >
+            <select ref="regionDistrictSelect" v-model="selectedRegionDistrict" @change="updateRegion"
+              :disabled="!selectedRegionCity" required>
               <option value="">구/군 선택</option>
               <option v-for="district in availableDistricts" :key="district" :value="district">
                 {{ district }}

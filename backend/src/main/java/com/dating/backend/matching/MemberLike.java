@@ -10,5 +10,7 @@ public class MemberLike {
     @Column(nullable=false) private Long targetId;
     private boolean active=true;
     private boolean dismissed=false;
+    private Instant seenAt;
+    private boolean declined;
     private Instant createdAt=Instant.now();
 }

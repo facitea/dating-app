@@ -247,7 +247,7 @@ public class SafetyService {
         sanctions.apply(report.getReportedUserId(),reportId,request.getAction(),request.getDays(),request.getPublicReason());
         report.setStatus("RESOLVED");report.setAdminNote(request.getAdminNote());report.setResolutionAction(request.getAction());report.setSuspensionDays("TEMPORARY".equals(request.getAction())?request.getDays():null);report.setPublicReason(request.getPublicReason());report.setResolvedAt(java.time.Instant.now());
         String outcome=switch(request.getAction()){case "WARNING"->"경고 조치";case "TEMPORARY"->"기간 정지 조치";case "PERMANENT"->"영구 정지 조치";default->"검토 완료 (추가 조치 없음)";};
-        inbox.add(report.getReporterUserId(),"REPORT:"+reportId,"신고 처리 결과","신고 #"+reportId+": "+outcome+"되었습니다.","/notifications");
+        inbox.add(report.getReporterUserId(),"REPORT:"+reportId,"내가 접수한 신고 처리 결과","회원님은 이 신고의 신고자입니다. 접수하신 신고 #"+reportId+"의 처리 결과: "+outcome+".","/notifications");
         return new MessageResponse("신고 처리와 계정 조치를 저장했습니다.");
     }
 

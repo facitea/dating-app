@@ -17,9 +17,10 @@ public class SocialService {
     private final DailyMatchSchedule schedule;
     private final ChatRequestService requests;
     private final SafetyEventService safetyEvents;
-    @Value("${app.credits.direct-chat-cost:10}") private int directCost;
+    @Value("${app.credits.direct-chat-cost:20}") private int directCost;
     public record Person(Long id,String nickname,int age,String region,String imageUrl) {}
-    public record Connection(Person person,Long roomId,boolean matched,Instant createdAt,String eventKey) {
+    public record Connection(Person person,Long roomId,boolean matched,Instant createdAt,String eventKey,boolean seen) {
+        public Connection(Person p,Long r,boolean m,Instant at,String key){this(p,r,m,at,key,false);}
         public Connection(Person person,Long roomId,boolean matched,Instant createdAt) { this(person,roomId,matched,createdAt,null); }
     }
     public record Overview(List<Connection> received,List<Connection> sent,List<Connection> matched) {}
@@ -31,7 +32,7 @@ public class SocialService {
     public record DirectRequest(Long targetId,String text,String clientId,Integer expectedCost,Boolean safetyAcknowledged) { public DirectRequest { safetyAcknowledged=Boolean.TRUE.equals(safetyAcknowledged); } public DirectRequest(Long targetId,String text,String clientId,Integer expectedCost){this(targetId,text,clientId,expectedCost,false);} }
     public record OpenResult(Long roomId,int charged,int balance) {}
 
-    public record PublicProfile(Person person,List<String> images,String job,String mbti,String introduction,String personality,String idealType,String smoking,String drinking,String religion,int totalImages,int ownImageCount,String traitsJson) {}
+    public record PublicProfile(Person person,List<String> images,String job,String mbti,String introduction,String personality,String idealType,String smoking,String drinking,String religion,int totalImages,int ownImageCount,String traitsJson,Instant lastActiveAt) {}
     @Transactional(readOnly=true) public PublicProfile profile(String email,Long id) {
         var me=user(email); requireAvailable(me.getId(),id); requireKnown(me.getId(),id);
         var p=em.createQuery("select p from UserProfile p where p.userId=:id",UserProfile.class).setParameter("id",id).getResultStream().findFirst().orElseThrow(()->error(HttpStatus.NOT_FOUND,"프로필을 찾을 수 없습니다."));
@@ -40,8 +41,8 @@ public class SocialService {
         int ownCount=em.createQuery("select count(i) from UserProfileImage i where i.userId=:u",Long.class).setParameter("u",me.getId()).getSingleResult().intValue();
         if(mineApproved!=null)ownCount=Math.min(ownCount,mineApproved.getImages().size());
         var approved=em.find(ApprovedProfile.class,id);
-        if(approved!=null)return new PublicProfile(person(id),approved.getImages().stream().limit(ownCount).toList(),approved.getJob(),approved.getMbti(),approved.getIntroduction(),approved.getPersonality(),approved.getIdealType(),approved.getSmoking(),approved.getDrinking(),approved.getReligion(),approved.getImages().size(),ownCount,approved.getTraitsJson());
-        return new PublicProfile(person(id),images.stream().limit(ownCount).toList(),p.getJob(),p.getMbti(),p.getIntroduction(),p.getPersonality(),p.getIdealType(),p.getSmokingStatus(),p.getDrinkingStatus(),p.getReligion(),images.size(),ownCount,p.getTraitsJson());
+        if(approved!=null)return new PublicProfile(person(id),approved.getImages().stream().limit(ownCount).toList(),approved.getJob(),approved.getMbti(),approved.getIntroduction(),approved.getPersonality(),approved.getIdealType(),approved.getSmoking(),approved.getDrinking(),approved.getReligion(),approved.getImages().size(),ownCount,approved.getTraitsJson(),em.find(User.class,id).getLastActiveAt());
+        return new PublicProfile(person(id),images.stream().limit(ownCount).toList(),p.getJob(),p.getMbti(),p.getIntroduction(),p.getPersonality(),p.getIdealType(),p.getSmokingStatus(),p.getDrinkingStatus(),p.getReligion(),images.size(),ownCount,p.getTraitsJson(),em.find(User.class,id).getLastActiveAt());
     }
     @Transactional(readOnly=true) public List<Person> blocks(String email){var me=user(email);return em.createQuery("select v.targetId from MemberVisibility v where v.ownerId=:u and v.blocked=true",Long.class).setParameter("u",me.getId()).getResultList().stream().map(this::person).toList();}
     @Transactional public void unblock(String email,Long id){var me=user(email);lockPair(me.getId(),id);var v=visibility(me.getId(),id,false);if(v!=null&&v.isBlocked()){var target=em.find(User.class,id);long active=em.createQuery("select count(v) from MemberVisibility v where v.targetId=:id and v.blocked=true",Long.class).setParameter("id",id).getSingleResult();target.setTotalBlockCount(Math.max(target.getTotalBlockCount(),active));v.setBlocked(false);}}
@@ -72,10 +73,10 @@ public class SocialService {
         var me=user(email); lockPair(me.getId(),otherId); if(!eligible(me.getId(),otherId))throw error(HttpStatus.FORBIDDEN,"현재 대화할 수 없는 상대입니다."); requireKnown(me.getId(),otherId);
         var like=findLike(me.getId(),otherId);
         if(like==null) { like=new MemberLike(); like.setSenderId(me.getId()); like.setTargetId(otherId); em.persist(like); }
-        if(!like.isActive()){like.setCreatedAt(Instant.now());like.setDismissed(false);}like.setActive(true);var ownVisibility=visibility(me.getId(),otherId,false);if(ownVisibility!=null)ownVisibility.setMatchHidden(false);em.flush();inbox.add(otherId,"LIKE:"+like.getId()+":"+like.getCreatedAt().toEpochMilli(),"새 좋아요가 도착했어요","매칭현황에서 상대를 확인해 보세요.","/matches");
-        var reverse=findLike(otherId,me.getId());
+        if(!like.isActive()){like.setCreatedAt(Instant.now());like.setDismissed(false);like.setSeenAt(null);like.setDeclined(false);}like.setActive(true);var ownVisibility=visibility(me.getId(),otherId,false);if(ownVisibility!=null)ownVisibility.setMatchHidden(false);em.flush();inbox.add(otherId,"LIKE:"+like.getId()+":"+like.getCreatedAt().toEpochMilli(),"새 좋아요가 도착했어요","매칭현황에서 상대를 확인해 보세요.","/matches");
+        var reverse=findLike(otherId,me.getId());if(reverse!=null&&reverse.isDeclined()){reverse.setDeclined(false);reverse.setDismissed(false);}
         var room=findRoom(me.getId(),otherId);
-        if(reverse!=null&&reverse.isActive()&&(room==null||!room.isMatched()||room.isEnded())) {
+        if(reverse!=null&&reverse.isActive()&&!reverse.isDeclined()&&!like.isDeclined()&&(room==null||!room.isMatched()||room.isEnded())) {
             if(room==null) room=createRoom(me.getId(),otherId);
             else em.refresh(room,LockModeType.PESSIMISTIC_WRITE);
             if(room.isEnded()){room.setMatchGeneration(room.getMatchGeneration()+1);room.setEnded(false);}room.setMatched(true);room.setUpdatedAt(Instant.now());
@@ -92,6 +93,8 @@ public class SocialService {
         if(like==null) throw error(HttpStatus.NOT_FOUND,"좋아요를 찾을 수 없습니다.");
         like.setDismissed(true);
     }
+    @Transactional public void rejectLike(String email,Long id){var me=user(email);lockPair(me.getId(),id);var l=findLike(id,me.getId());if(l==null)throw error(HttpStatus.NOT_FOUND,"좋아요를 찾을 수 없습니다.");l.setDeclined(true);l.setDismissed(true);l.setSeenAt(Instant.now());var own=findLike(me.getId(),id);if(own!=null)own.setActive(false);}
+    @Transactional public void readLikes(String email,List<Long> ids){if(ids==null||ids.size()>100)throw error(HttpStatus.BAD_REQUEST,"확인할 좋아요를 선택해 주세요.");var me=user(email);if(ids.isEmpty())return;em.createQuery("select l from MemberLike l where l.targetId=:me and l.senderId in :ids and l.active=true and l.seenAt is null",MemberLike.class).setParameter("me",me.getId()).setParameter("ids",ids).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList().forEach(l->l.setSeenAt(Instant.now()));}
     @Transactional(readOnly=true) public Overview overview(String email) {
         var me=user(email);
         var likes=em.createQuery("select l from MemberLike l where l.active=true and (l.senderId=:id or l.targetId=:id) order by l.createdAt desc",MemberLike.class)
@@ -101,7 +104,7 @@ public class SocialService {
             boolean incoming=l.getTargetId().equals(me.getId()); var other=incoming?l.getSenderId():l.getTargetId();
             if(!eligible(me.getId(),other)||matchHidden(me.getId(),other)) continue;
             var room=findRoom(me.getId(),other);
-            var c=new Connection(person(other),room==null?null:room.getId(),room!=null&&room.isMatched(),l.getCreatedAt(),incoming?"LIKE:"+l.getId()+":"+l.getCreatedAt().toEpochMilli():null);
+            var c=new Connection(person(other),room==null?null:room.getId(),room!=null&&room.isMatched(),l.getCreatedAt(),incoming?"LIKE:"+l.getId()+":"+l.getCreatedAt().toEpochMilli():null,l.getSeenAt()!=null);
             if(incoming&&!l.isDismissed()&&!c.matched()) received.add(c);
             if(!incoming) sent.add(c);
         }

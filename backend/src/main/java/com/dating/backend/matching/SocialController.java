@@ -22,6 +22,8 @@ public class SocialController {
     @GetMapping("/matches") public SocialService.Overview matches(Authentication a) { return social.overview(a.getName()); }
     @PostMapping("/likes/{id}") public SocialService.Connection like(Authentication a,@PathVariable Long id) { return social.like(a.getName(),id); }
     @PostMapping("/likes/{id}/dismiss") public void dismiss(Authentication a,@PathVariable Long id) { social.dismiss(a.getName(),id); }
+    @PostMapping("/likes/{id}/reject") public void reject(Authentication a,@PathVariable Long id){social.rejectLike(a.getName(),id);}
+    @PostMapping("/likes/read") public void readLikes(Authentication a,@RequestBody List<Long> ids){social.readLikes(a.getName(),ids);}
     @GetMapping("/contact/{id}") public SocialService.Quote quote(Authentication a,@PathVariable Long id) { return social.quote(a.getName(),id); }
     @PostMapping("/direct") public SocialService.OpenResult direct(Authentication a,@RequestBody SocialService.DirectRequest r) { return social.direct(a.getName(),r); }
     public record Decision(boolean accept) {}

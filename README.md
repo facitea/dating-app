@@ -28,7 +28,7 @@ Uploaded photos and the database are not included in clones. Back them up separa
 ## Current behavior
 
 - Daily recommendations refresh at 08:00 and 20:00 Asia/Seoul, with a new daily cycle at 08:00.
-- Additional recommendations cost 10 credits per card with no daily purchase cap; only eligible, not-yet-selected candidates can be purchased.
+- Additional recommendations cost 3 credits per card with no daily purchase cap; only eligible, not-yet-selected candidates can be purchased.
 - Customer support uses direct inquiries and administrator replies; there is no chatbot.
 - Report handling supports warnings, temporary suspensions and permanent suspensions.
 - Terms are test drafts; account withdrawal disables the account rather than purging all database records.
@@ -56,7 +56,7 @@ Configuration alone is not an end-to-end verification: test a real Google popup 
 - OWNER manages administrators and all operations; REVIEWER handles signup/profile decisions; SUPPORT handles inquiries/reports; READ_ONLY only reads. Password/role/activation changes revoke existing admin sessions.
 - HTTPS deployment: set `app.auth.refresh-cookie-secure=true` and `app.cors.origins` to the exact frontend origin(s). Keep all `.local` files private.
 - Uploaded photos are private: authenticated `/api/media/...` for members, `/api/admin/media/...` for admins. Do not expose the uploads folder through nginx/static hosting.
-- Email verification and password reset are disabled until real email delivery is implemented: the old endpoints disclosed development codes/tokens. Existing email login and Google login still work. Never enable `app.auth.dev-verification=true` on a public server.
+- Email verification and password reset use Firebase for Firebase email accounts. Legacy LOCAL accounts retain their existing password-change flow; recovery without the old password requires support. Never enable `app.auth.dev-verification=true` on a public server.
 - Public legal page: `/legal`; operator 양종현 / sku2013@naver.com. Retention and deletion gaps are recorded in the security report, not silently described as implemented.
 
 ## 다른 PC / 다른 AI로 인수인계

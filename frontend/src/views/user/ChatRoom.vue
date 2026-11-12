@@ -1,22 +1,248 @@
-<template><section class="social-page conversation"><header><RouterLink to="/chats" aria-label="채팅 목록">‹</RouterLink><AvatarLink v-if="person" :person="person" class="header-avatar"/><RouterLink v-if="person" class="person-link" :to="`/members/${person.id}`">{{person.nickname}}</RouterLink><strong v-else>채팅</strong><button v-if="person" class="room-menu" aria-label="상대 메뉴" @click="actions.open(person,matched?'conversation':'report',room,messages)">⋯</button></header><p v-if="error" role="alert">{{error}} <button @click="load()">다시 확인</button></p><div ref="list" class="messages" aria-label="대화 내용"><button v-if="hasOlder" :disabled="loading" @click="load(true)">이전 메시지</button><p v-if="!messages.length" class="social-empty">{{loading?'불러오는 중…':'첫 메시지를 보내보세요.'}}</p><article v-for="m in messages" :key="m.id" :class="['message',{mine:m.mine}]"><AvatarLink v-if="!m.mine && person" :person="person" class="message-avatar"/><div class="message-content"><p>{{m.text}}</p><aside v-if="m.safetyWarning" class="safety-warning" role="note">⚠ {{m.safetyWarning}}</aside><time><span v-if="m.mine">{{m.id<=peerReadThrough?'읽음':'안 읽음'}} · </span>{{new Date(m.createdAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}}</time></div></article></div><div v-if="request && request.state !== 'ACCEPTED'" class="request-status" role="status">
-<template v-if="request.state === 'PENDING'"><strong>{{request.incoming?'대화 요청이 도착했어요':'상대의 수락을 기다리고 있어요'}}</strong><p>{{new Date(request.expiresAt).toLocaleString('ko-KR')}}까지 수락 가능</p><p>거절하거나 기한이 지나면 요청자에게 {{request.credits}}크레딧이 반환돼요.</p><div v-if="request.incoming"><button class="primary" :disabled="deciding" @click="decide(true)">수락하고 대화하기</button><button :disabled="deciding" @click="decide(false)">거절</button></div></template>
-<template v-else><strong>{{request.state==='DECLINED'?'거절된 대화 요청':'수락 기한이 지난 대화 요청'}}</strong><p>요청자에게 크레딧이 반환됐어요.</p></template></div>
-<form v-if="request?.state === 'ACCEPTED'" class="composer" @submit.prevent="send"><textarea ref="input" v-model="draft" maxlength="2000" aria-label="메시지" placeholder="메시지 입력" @keydown="enter"/><button @pointerdown.prevent="input?.focus()" class="primary" :disabled="sending || !draft.trim() || !person">{{sending?'…':'전송'}}</button></form><MemberActions ref="actions" @changed="router.replace('/chats')"/></section></template>
+<template>
+    <section class="social-page conversation">
+        <header>
+            <RouterLink to="/chats" aria-label="채팅 목록">‹</RouterLink>
+            <AvatarLink v-if="person" :person="person" class="header-avatar" />
+            <RouterLink v-if="person" class="person-link" :to="`/members/${person.id}`">{{ person.nickname }}</RouterLink>
+            <strong v-else>채팅</strong><button v-if="person" class="room-menu" aria-label="상대 메뉴"
+                @click="actions.open(person, matched ? 'conversation' : 'report', room, messages)">⋯</button>
+        </header>
+        <p v-if="error" role="alert">{{ error }} <button @click="load()">다시 확인</button></p>
+        <div ref="list" class="messages" aria-label="대화 내용"><button v-if="hasOlder" :disabled="loading"
+                @click="load(true)">이전 메시지</button>
+            <p v-if="!messages.length" class="social-empty">{{ loading ? '불러오는 중…' : '첫 메시지를 보내보세요.' }}</p>
+            <article v-for="m in messages" :key="m.id" :class="['message', { mine: m.mine }]">
+                <AvatarLink v-if="!m.mine && person" :person="person" class="message-avatar" />
+                <div class="message-content">
+                    <p>{{ m.text }}</p>
+                    <aside v-if="m.safetyWarning" class="safety-warning" role="note">⚠ {{ m.safetyWarning }}</aside>
+                    <time><span v-if="m.mine">{{ m.id <= peerReadThrough ? '읽음' : '안 읽음' }} · </span>{{ new
+                        Date(m.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit',minute:'2-digit'})}}</time>
+                </div>
+            </article>
+        </div>
+        <div v-if="request && request.state !== 'ACCEPTED'" class="request-status" role="status">
+            <template v-if="request.state === 'PENDING'"><strong>{{ request.incoming ? '대화 요청이 도착했어요' : '상대의 수락을 기다리고 있어요'}}</strong>
+                <p>{{ new Date(request.expiresAt).toLocaleString('ko-KR') }}까지 수락 가능</p>
+                <p>거절하거나 기한이 지나면 요청자에게 {{ request.credits }}크레딧이 반환돼요.</p>
+                <div v-if="request.incoming"><button class="primary" :disabled="deciding" @click="decide(true)">수락하고
+                        대화하기</button><button :disabled="deciding" @click="decide(false)">거절</button></div>
+            </template>
+            <template v-else><strong>{{ request.state === 'DECLINED' ? '거절된 대화 요청' : '수락 기한이 지난 대화 요청' }}</strong>
+                <p>요청자에게 크레딧이 반환됐어요.</p>
+            </template>
+        </div>
+        <form v-if="request?.state === 'ACCEPTED'" class="composer" @submit.prevent="send"><textarea ref="input"
+                :value="draft" @input="draft = $event.target.value" maxlength="2000" aria-label="메시지" placeholder="메시지 입력" @keydown="enter" /><button
+                @pointerdown.prevent="input?.focus()" class="primary"
+                :disabled="sending || !draft.trim() || !person">{{ sending ? '…' : '전송' }}</button></form>
+        <MemberActions ref="actions" @changed="router.replace('/chats')" />
+    </section>
+</template>
 <script setup>
-import {safetyPost} from '../../components/safetySend';
+import { safetyPost } from '../../components/safetySend';
 import AvatarLink from '../../components/AvatarLink.vue';
 import MemberActions from '../../components/MemberActions.vue';
 import { refreshBadges } from "../../components/notificationEvents";
-import {requestId} from "../../components/requestId";
-import {ref,onMounted,onUnmounted,nextTick} from 'vue';import {useRoute,useRouter} from 'vue-router';import api from '../../api/api';import '../../components/social.css';
-const input=ref();
-const request=ref(),deciding=ref(false);
-const matched=ref(false),peerReadThrough=ref(0),actions=ref(),router=useRouter(),route=useRoute(),room=route.params.id,person=ref(),messages=ref([]),draft=ref(''),error=ref(''),list=ref(),loading=ref(false),sending=ref(false),hasOlder=ref(false);let timer,disposed=false,pending,fetched=0;
-async function load(older=false){if(loading.value||disposed||document.hidden)return;loading.value=true;const el=list.value,near=!el||el.scrollHeight-el.scrollTop-el.clientHeight<100,oldHeight=el?.scrollHeight||0;try{const first=messages.value[0]?.id,last=fetched;const {data}=await api.get(`/social/rooms/${room}/messages`,{params:older?{before:first}:last?{after:last}:{}});if(disposed)return;person.value=data.person;request.value=data.request;matched.value=!!data.matched;peerReadThrough.value=data.peerReadThrough||0;if(data.messages.length)refreshBadges();if(!older&&data.messages.length)fetched=data.messages.at(-1).id;const all=new Map(messages.value.map(m=>[m.id,m]));data.messages.forEach(m=>all.set(m.id,m));messages.value=[...all.values()].sort((a,b)=>a.id-b.id);if(older||!last)hasOlder.value=data.hasOlder;error.value='';await nextTick();if(older)list.value.scrollTop+=list.value.scrollHeight-oldHeight;else if(near)bottom();}catch(e){error.value=e.response?.data?.message||'대화를 불러오지 못했어요.';}finally{loading.value=false;}}
-async function decide(accept){if(deciding.value)return;deciding.value=true;try{request.value=(await api.post(`/social/rooms/${room}/request`,{accept})).data;await load();refreshBadges();}catch(e){error.value=e.response?.data?.message||'요청을 처리하지 못했어요.';}finally{deciding.value=false;}}
-function bottom(){if(list.value)list.value.scrollTop=list.value.scrollHeight;}
-function enter(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send();}}
-async function send(){if(sending.value||request.value?.state!=='ACCEPTED'||!draft.value.trim()||!person.value)return;sending.value=true;error.value='';if(!pending||pending.text!==draft.value)pending={text:draft.value,clientId:requestId()};try{const result=await safetyPost(`/social/rooms/${room}/messages`,pending);if(!result)return;const {data}=result;if(!messages.value.some(m=>m.id===data.id))messages.value.push(data);messages.value.sort((a,b)=>a.id-b.id);if(draft.value===pending.text)draft.value='';pending=null;await nextTick();bottom();}catch(e){error.value=e.response?.data?.message||'전송 결과를 확인하지 못했어요. 다시 전송해 주세요.';}finally{sending.value=false;await nextTick();input.value?.focus({preventScroll:true});}}
-onMounted(()=>{load();timer=setInterval(()=>{if(!document.hidden)load();},2500);});onUnmounted(()=>{disposed=true;clearInterval(timer);});
+import { requestId } from "../../components/requestId";
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'; import { useRoute, useRouter } from 'vue-router'; import api from '../../api/api'; import '../../components/social.css';
+const input = ref();
+const request = ref(), deciding = ref(false);
+const matched = ref(false), peerReadThrough = ref(0), actions = ref(), router = useRouter(), route = useRoute(), room = route.params.id, person = ref(), messages = ref([]), draft = ref(''), error = ref(''), list = ref(), loading = ref(false), sending = ref(false), hasOlder = ref(false); let timer, disposed = false, pending, fetched = 0;
+async function load(older = false) { if (loading.value || disposed || document.hidden) return; loading.value = true; const el = list.value, near = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 100, oldHeight = el?.scrollHeight || 0; try { const first = messages.value[0]?.id, last = fetched; const { data } = await api.get(`/social/rooms/${room}/messages`, { params: older ? { before: first } : last ? { after: last } : {} }); if (disposed) return; person.value = data.person; request.value = data.request; matched.value = !!data.matched; peerReadThrough.value = data.peerReadThrough || 0; if (data.messages.length) refreshBadges(); if (!older && data.messages.length) fetched = data.messages.at(-1).id; const all = new Map(messages.value.map(m => [m.id, m])); data.messages.forEach(m => all.set(m.id, m)); messages.value = [...all.values()].sort((a, b) => a.id - b.id); if (older || !last) hasOlder.value = data.hasOlder; error.value = ''; await nextTick(); if (older) list.value.scrollTop += list.value.scrollHeight - oldHeight; else if (near) bottom(); } catch (e) { error.value = e.response?.data?.message || '대화를 불러오지 못했어요.'; } finally { loading.value = false; } }
+async function decide(accept) { if (deciding.value) return; deciding.value = true; try { request.value = (await api.post(`/social/rooms/${room}/request`, { accept })).data; await load(); refreshBadges(); } catch (e) { error.value = e.response?.data?.message || '요청을 처리하지 못했어요.'; } finally { deciding.value = false; } }
+function bottom() { if (list.value) list.value.scrollTop = list.value.scrollHeight; }
+function enter(e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); send(); } }
+async function send() { draft.value = input.value?.value ?? draft.value; if (sending.value || request.value?.state !== 'ACCEPTED' || !draft.value.trim() || !person.value) return; sending.value = true; error.value = ''; if (!pending || pending.text !== draft.value) pending = { text: draft.value, clientId: requestId() }; try { const result = await safetyPost(`/social/rooms/${room}/messages`, pending); if (!result) return; const { data } = result; if (!messages.value.some(m => m.id === data.id)) messages.value.push(data); messages.value.sort((a, b) => a.id - b.id); if (draft.value === pending.text) draft.value = ''; pending = null; await nextTick(); bottom(); } catch (e) { error.value = e.response?.data?.message || '전송 결과를 확인하지 못했어요. 다시 전송해 주세요.'; } finally { sending.value = false; await nextTick(); input.value?.focus({ preventScroll: true }); } }
+onMounted(() => { load(); timer = setInterval(() => { if (!document.hidden) load(); }, 2500); }); onUnmounted(() => { disposed = true; clearInterval(timer); });
 </script>
-<style scoped>.safety-warning{padding:10px;margin-top:6px;background:#fff3df;color:#7b4a17;border-radius:10px;font-size:12px;line-height:1.6;}.request-status{padding:14px;border-radius:16px;background:#fff2ea;font-size:12px;flex:none}.request-status p{line-height:1.6;margin:6px 0}.request-status>div{display:flex;gap:8px;margin-top:10px}.conversation{height:calc(100dvh - 126px - env(safe-area-inset-bottom));min-height:300px;display:flex;flex-direction:column}.conversation header{display:flex;align-items:center;gap:16px;padding-bottom:14px}.conversation header a{font-size:30px;color:#92553f;text-decoration:none}.conversation header span{margin-left:auto;font-size:11px;color:#947568}.messages{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:10px 2px;display:flex;flex-direction:column;gap:14px}.message{max-width:83%;align-self:flex-start}.message.mine{align-self:flex-end}.message p{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5e4db;border-radius:16px 16px 16px 4px;padding:11px 14px;margin:0;font-size:14px;line-height:1.6}.message.mine p{background:#d56f4e;color:white;border-radius:16px 16px 4px 16px}.message time{display:block;font-size:10px;color:#947568;margin-top:4px}.message.mine time{text-align:right}.composer{display:flex;gap:8px;padding-top:12px}.composer textarea{flex:1;min-width:0;resize:none;border:1px solid #eed4c8;border-radius:14px;padding:12px;background:#fffcf9;color:#31211d;font:inherit;font-size:16px;height:56px;box-sizing:border-box}.composer button{flex:none}.conversation header .person-link{font-size:16px}.room-menu{margin-left:auto;font-size:26px!important;line-height:1}.conversation{background:#fff}.conversation header{gap:10px;border-bottom:1px solid #f1edeb}.header-avatar{--avatar-size:36px}.message{display:flex;gap:8px;max-width:88%;align-items:flex-start}.message-content{min-width:0}.message-avatar{--avatar-size:34px}.message p{background:#f5f2f0}.message.mine{max-width:80%}.composer{border-top:1px solid #f1edeb;padding-top:10px}.composer textarea{background:#f7f7f7;border-color:#eee}.messages{padding-top:20px;padding-bottom:20px}</style>
+<style
+    scoped>
+    .safety-warning {
+        padding: 10px;
+        margin-top: 6px;
+        background: #fff3df;
+        color: #7b4a17;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .request-status {
+        padding: 14px;
+        border-radius: 16px;
+        background: #fff2ea;
+        font-size: 12px;
+        flex: none
+    }
+
+    .request-status p {
+        line-height: 1.6;
+        margin: 6px 0
+    }
+
+    .request-status>div {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px
+    }
+
+    .conversation {
+        height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        min-height: 300px;
+        display: flex;
+        flex-direction: column
+    }
+
+    .conversation header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding-bottom: 14px
+    }
+
+    .conversation header a {
+        font-size: 30px;
+        color: #92553f;
+        text-decoration: none
+    }
+
+    .conversation header span {
+        margin-left: auto;
+        font-size: 11px;
+        color: #947568
+    }
+
+    .messages {
+        flex: 1;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 10px 2px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px
+    }
+
+    .message {
+        max-width: 83%;
+        align-self: flex-start
+    }
+
+    .message.mine {
+        align-self: flex-end
+    }
+
+    .message p {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        background: #f5e4db;
+        border-radius: 16px 16px 16px 4px;
+        padding: 11px 14px;
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.6
+    }
+
+    .message.mine p {
+        background: #d56f4e;
+        color: white;
+        border-radius: 16px 16px 4px 16px
+    }
+
+    .message time {
+        display: block;
+        font-size: 10px;
+        color: #947568;
+        margin-top: 4px
+    }
+
+    .message.mine time {
+        text-align: right
+    }
+
+    .composer {
+        display: flex;
+        gap: 8px;
+        padding-top: 12px
+    }
+
+    .composer textarea {
+        flex: 1;
+        min-width: 0;
+        resize: none;
+        border: 1px solid #eed4c8;
+        border-radius: 14px;
+        padding: 12px;
+        background: #fffcf9;
+        color: #31211d;
+        font: inherit;
+        font-size: 16px;
+        height: 56px;
+        box-sizing: border-box
+    }
+
+    .composer button {
+        flex: none
+    }
+
+    .conversation header .person-link {
+        font-size: 16px
+    }
+
+    .room-menu {
+        margin-left: auto;
+        font-size: 26px !important;
+        line-height: 1
+    }
+
+    .conversation {
+        background: #fff
+    }
+
+    .conversation header {
+        gap: 10px;
+        border-bottom: 1px solid #f1edeb
+    }
+
+    .header-avatar {
+        --avatar-size: 36px
+    }
+
+    .message {
+        display: flex;
+        gap: 8px;
+        max-width: 88%;
+        align-items: flex-start
+    }
+
+    .message-content {
+        min-width: 0
+    }
+
+    .message-avatar {
+        --avatar-size: 34px
+    }
+
+    .message p {
+        background: #f5f2f0
+    }
+
+    .message.mine {
+        max-width: 80%
+    }
+
+    .composer {
+        border-top: 1px solid #f1edeb;
+        padding-top: 10px
+    }
+
+    .composer textarea {
+        background: #f7f7f7;
+        border-color: #eee
+    }
+
+    .messages {
+        padding-top: 20px;
+        padding-bottom: 20px
+    }
+</style>

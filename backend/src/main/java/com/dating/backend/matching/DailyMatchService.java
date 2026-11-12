@@ -75,16 +75,16 @@ public class DailyMatchService {
 
     public record ExtraQuote(int cost,int balance,int purchasedCount,LocalDate cycleDay,Instant resetAt){}
     public record ExtraPurchase(LocalDate cycleDay,int expectedCost,String requestId){}
-    @Transactional public ExtraQuote extraQuote(String email){var u=owner(email);var w=schedule.current();var wallet=em.find(CreditWallet.class,u.getId());return new ExtraQuote(10,wallet==null?0:wallet.getBalance(),(int)cards(u.getId(),w.day()).stream().filter(c->c.getSlot()>=6).count(),w.day(),w.resetAt());}
+    @Transactional public ExtraQuote extraQuote(String email){var u=owner(email);var w=schedule.current();var wallet=em.find(CreditWallet.class,u.getId());return new ExtraQuote(3,wallet==null?0:wallet.getBalance(),(int)cards(u.getId(),w.day()).stream().filter(c->c.getSlot()>=6).count(),w.day(),w.resetAt());}
     @Transactional public Card buyExtra(String email,ExtraPurchase request){
         var u=owner(email);var window=schedule.current();
         if(request==null||!window.day().equals(request.cycleDay()))throw error(HttpStatus.CONFLICT,"새 회차로 바뀌었습니다. 가격을 다시 확인해 주세요.");
         if(u.isResting())throw error(HttpStatus.CONFLICT,"휴식 모드를 해제해 주세요.");
-        if(request.expectedCost()!=10)throw error(HttpStatus.CONFLICT,"가격을 다시 확인해 주세요.");
+        if(request.expectedCost()!=3)throw error(HttpStatus.CONFLICT,"가격을 다시 확인해 주세요.");
         try{if(!UUID.fromString(request.requestId()).toString().equals(request.requestId()))throw new IllegalArgumentException();}catch(Exception e){throw error(HttpStatus.BAD_REQUEST,"구매 요청 번호를 확인해 주세요.");}
         var existing=cards(u.getId(),window.day()).stream().filter(c->request.requestId().equals(c.getPurchaseRequestId())).findFirst();if(existing.isPresent())return view(existing.get(),window);
         today(email);
-        var wallet=em.find(CreditWallet.class,u.getId(),LockModeType.PESSIMISTIC_WRITE);if(wallet==null||wallet.getBalance()<10)throw error(HttpStatus.CONFLICT,"크레딧이 부족합니다. 충전 후 다시 시도해 주세요.");
+        var wallet=em.find(CreditWallet.class,u.getId(),LockModeType.PESSIMISTIC_WRITE);if(wallet==null||wallet.getBalance()<3)throw error(HttpStatus.CONFLICT,"크레딧이 부족합니다. 충전 후 다시 시도해 주세요.");
         var excluded=history(u.getId());
         var pref=preferences.active(u.getId(),window.now().isBefore(window.evening())?window.morning():window.evening());var mine=profile(u.getId());var verification=verification(u.getId());
         if(verification==null||verification.getBirthDate()==null)throw error(HttpStatus.CONFLICT,"프로필을 먼저 완성해 주세요.");
@@ -93,7 +93,7 @@ public class DailyMatchService {
         pool.sort(Comparator.<Candidate>comparingInt(c->scores.get(c.user().getId())).reversed().thenComparingInt(c->Objects.hash(u.getId(),window.day(),c.user().getId())));
         if(pool.isEmpty())throw error(HttpStatus.CONFLICT,"조건에 맞는 추가 인연이 없습니다. 크레딧은 차감되지 않았습니다.");
         var card=new DailyMatchCard();card.setOwnerId(u.getId());card.setCycleDay(window.day());card.setSlot(Math.max(5,cards(u.getId(),window.day()).stream().mapToInt(DailyMatchCard::getSlot).max().orElse(5))+1);card.setPurchaseRequestId(request.requestId());card.setCandidateId(pool.get(0).user().getId());card.setRevealedAt(window.now());em.persist(card);
-        wallet.setBalance(wallet.getBalance()-10);var entry=new CreditEntry();entry.setUserId(u.getId());entry.setAmount(-10);entry.setReferenceKey("EXTRA:"+window.day()+":"+request.requestId());em.persist(entry);em.flush();return view(card,window);
+        wallet.setBalance(wallet.getBalance()-3);var entry=new CreditEntry();entry.setUserId(u.getId());entry.setAmount(-3);entry.setReferenceKey("EXTRA:"+window.day()+":"+request.requestId());em.persist(entry);em.flush();return view(card,window);
     }
 
     private User owner(String email) {

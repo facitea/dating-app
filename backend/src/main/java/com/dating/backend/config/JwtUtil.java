@@ -54,7 +54,8 @@ public class JwtUtil {
         try {
             var claims=Jwts.parser().setSigningKey(secretKey).parseClaimsJws(token).getBody();
             var user=users.findByEmail(claims.getSubject()).orElse(null);if(user==null||"DELETED".equals(user.getStatus())||"SUSPENDED".equals(user.getStatus()))return false;
-            Number version=claims.get("sv",Number.class);return user.getSessionVersion()==(version==null?0:version.longValue());
+            Number version=claims.get("sv",Number.class);boolean valid=user.getSessionVersion()==(version==null?0:version.longValue());
+            if(valid&&(user.getLastActiveAt()==null||user.getLastActiveAt().isBefore(java.time.Instant.now().minusSeconds(300))))users.touchActivity(user.getId(),java.time.Instant.now(),java.time.Instant.now().minusSeconds(300));return valid;
         } catch (Exception e) {
             return false;
         }

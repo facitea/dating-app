@@ -63,7 +63,10 @@ public class User {
     // 가입 경로
     private String provider;
 
+    private java.time.Instant lastActiveAt;
+
     @Column(name = "status", nullable = false, length = 30)
+
     // 계정 상태
     @Builder.Default
     private String status = "ACTIVE";

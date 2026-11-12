@@ -40,7 +40,7 @@ Back up before deployment, change /srv/geureomuri/current symlink to the new rel
 Never delete /var/lib/mysql, /etc/geureomuri or /srv/geureomuri/data during redeployment.
 Database schema currently uses Hibernate update; add versioned migrations before real production.
 
-The Android debug APK uses the cloud API, but Android Firebase registration/google-services.json is still missing; native Google sign-in is not ready. Existing local test accounts are not present on this fresh server.
+Android Firebase registration and native login/push are configured. Restore ignored google-services.json and the same debug signing key on a new PC. Actual device Google sign-in/push still require device verification. Current deployment: community-20261112; see changes-2026-11-12.md.
 
 ## Template limitations
 

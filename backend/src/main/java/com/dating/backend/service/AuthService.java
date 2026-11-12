@@ -63,7 +63,7 @@ public class AuthService {
         if(google!=null) {
             request.setEmail(google.email());
             blockedIdentityService.validateSanction(google.email(),google.uid());
-            if(userRepository.findByFirebaseUid(google.uid()).isPresent())throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 가입된 Firebase 계정입니다. 로그인해 주세요.");
+            if(userRepository.findByFirebaseUid(google.uid()).filter(u->!"DELETED".equals(u.getStatus())).isPresent())throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 가입된 Firebase 계정입니다. 로그인해 주세요.");
         } else authVerificationService.validateSignupEmailVerified(request.getEmail(), request.getEmailVerificationToken());
         blockedIdentityService.validateSignupAllowed(request.getEmail(), null);
 
@@ -81,6 +81,27 @@ public class AuthService {
 
         if (existingUser != null) {
             sanctions.expire(existingUser.getId());
+            if("DELETED".equals(existingUser.getStatus())&&google!=null){
+                em.refresh(existingUser,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                if(!"DELETED".equals(existingUser.getStatus()))throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 재가입 처리되었습니다. 로그인해 주세요.");
+                blockedIdentityService.validateSanction(google.email(),google.uid());blockedIdentityService.validateLoginAllowed(existingUser);
+                if("SUSPENDED".equals(existingUser.getStatus())||existingUser.getSanctionType()!=null)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"정지된 계정은 다시 가입할 수 없습니다.");
+                if(existingUser.getFirebaseUid()!=null&&!existingUser.getFirebaseUid().equals(google.uid()))throw new ResponseStatusException(HttpStatus.CONFLICT,"기존 인증 계정으로 다시 로그인해 주세요.");
+                // Reuse identity to preserve sanctions, reports and one-time rewards. Never revive old relationships.
+                em.createQuery("update ChatRoom c set c.ended=true,c.matched=false where c.lowId=:id or c.highId=:id").setParameter("id",existingUser.getId()).executeUpdate();
+                em.createQuery("update MemberLike l set l.active=false where l.senderId=:id or l.targetId=:id").setParameter("id",existingUser.getId()).executeUpdate();
+                em.createQuery("update AppNotice n set n.seen=true,n.pushed=true where n.userId=:id").setParameter("id",existingUser.getId()).executeUpdate();
+                em.createQuery("update SelfieReview s set s.deleteAt=:now,s.state='EXPIRED' where s.userId=:id").setParameter("now",java.time.Instant.now()).setParameter("id",existingUser.getId()).executeUpdate();
+                em.createQuery("delete from MatchPreference p where p.ownerId=:id").setParameter("id",existingUser.getId()).executeUpdate();
+                em.createQuery("delete from DailyMatchCard c where c.ownerId=:id").setParameter("id",existingUser.getId()).executeUpdate();
+                em.createQuery("delete from UserProfileImage i where i.userId=:id").setParameter("id",existingUser.getId()).executeUpdate();
+                var snapshot=em.find(com.dating.backend.matching.ApprovedProfile.class,existingUser.getId());if(snapshot!=null)em.remove(snapshot);
+                existingUser.setFirebaseUid(google.uid());existingUser.setProvider("password".equals(google.provider())?"FIREBASE_EMAIL":"GOOGLE");existingUser.setPassword(null);
+                existingUser.setNickname(request.getNickname());existingUser.setStatus("PENDING_REVIEW");existingUser.setDeletedAt(null);existingUser.setResting(false);existingUser.setSelfieRequired(false);existingUser.setSelfieRequestReason(null);
+                existingUser.setSessionVersion(existingUser.getSessionVersion()+1);existingUser.setProfileReviewStatus("NONE");existingUser.setProfileReviewNote(null);
+                existingUser.setReviewDeadlineAt(accountReviewPolicyService.createSignupDeadline());existingUser.setReviewComment("재가입 심사 대기 중입니다. 사진과 셀피를 등록해 주세요.");clearResetToken(existingUser);
+                upsertProfile(existingUser,request);upsertVerification(existingUser,request);consent(existingUser,request);fraudDetectionService.evaluateUserProfile(existingUser.getId());return buildAuthResponse(existingUser);
+            }
             if(google!=null||existingUser.getFirebaseUid()!=null)throw new ResponseStatusException(HttpStatus.CONFLICT,"이미 가입된 이메일입니다. 기존 계정으로 로그인 후 연결해 주세요.");
             if("SUSPENDED".equals(existingUser.getStatus())||existingUser.getSanctionType()!=null)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"정지된 계정은 다시 가입할 수 없습니다.");
             if (hasLocalPassword(existingUser)) {
@@ -118,6 +139,8 @@ public class AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
+        var wallet=new com.dating.backend.matching.CreditWallet();wallet.setUserId(savedUser.getId());wallet.setBalance(5);em.persist(wallet);
+        var welcome=new com.dating.backend.matching.CreditEntry();welcome.setUserId(savedUser.getId());welcome.setAmount(5);welcome.setReferenceKey("SIGNUP_WELCOME");welcome.setMessage("첫 가입을 환영합니다. 5코인을 지급했어요.");em.persist(welcome);
         upsertProfile(savedUser, request);
         upsertVerification(savedUser, request);
         fraudDetectionService.evaluateUserProfile(savedUser.getId());
@@ -137,6 +160,7 @@ public class AuthService {
         if(user==null) {
             user=userRepository.findByEmail(identity.email()).orElse(null);
             if(user==null) {blockedIdentityService.validateSignupAllowed(identity.email(),null);return new GoogleResult("SIGNUP_REQUIRED",identity.email(),null);}
+            if("DELETED".equals(user.getStatus()))return new GoogleResult("SIGNUP_REQUIRED",identity.email(),null);
             if(existingPassword==null||existingPassword.isBlank())return new GoogleResult("LINK_REQUIRED",identity.email(),null);
             // Prove control of the existing account before linking; keep its profile and credits.
             if(user.getFirebaseUid()!=null)throw new ResponseStatusException(HttpStatus.CONFLICT,"다른 Firebase 계정이 연결되어 있습니다.");
@@ -148,7 +172,8 @@ public class AuthService {
             return new GoogleResult("AUTHENTICATED",user.getEmail(),auth);
         }
         sanctions.expire(user.getId());blockedIdentityService.validateLoginAllowed(user);
-        if("SUSPENDED".equals(user.getStatus())||"DELETED".equals(user.getStatus()))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"이용이 제한된 계정입니다. 고객센터에 문의해 주세요.");
+        if("DELETED".equals(user.getStatus()))return new GoogleResult("SIGNUP_REQUIRED",identity.email(),null);
+        if("SUSPENDED".equals(user.getStatus()))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"이용이 제한된 계정입니다. 고객센터에 문의해 주세요.");
         return new GoogleResult("AUTHENTICATED",user.getEmail(),buildAuthResponse(user));
     }
 

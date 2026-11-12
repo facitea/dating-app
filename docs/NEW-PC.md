@@ -74,7 +74,7 @@ npm run dev
 
 http://localhost:5173 / 관리자 http://localhost:5173/admin 로 접속한다. 관리자 bootstrap은 관리자 테이블이 비어 있을 때만 생성된다.
 환경변수 DB_URL/DB_USERNAME/DB_PASSWORD/JWT_SECRET 등이 남아 있으면 파일보다 우선될 수 있으니 확인한다. backend는 항상 backend 폴더에서 실행한다.
-이메일 인증/비밀번호 재설정은 아직 구현 미완료라 신규 가입 테스트는 Google 설정이 필요하다. 로컬 Google 허용 도메인에 localhost가 있어야 한다.
+이메일 인증/비밀번호 재설정은 Firebase로 구현되어 있다. 이메일/비밀번호 공급자를 활성화하고 Firebase 웹·서버 설정을 복원한다. 로컬 Google 허용 도메인에 localhost가 있어야 한다.
 
 ## 4. AWS 접근 (PC 경로 독립)
 

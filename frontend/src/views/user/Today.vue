@@ -69,7 +69,7 @@
         <article class="match-slide" aria-label="크레딧 추가 오픈 안내">
           <div class="credit-card">
 <div class="credit-copy"><span class="credit-symbol" aria-hidden="true">＋</span><p>크레딧 구매 시<br>추가 오픈 가능</p></div>
-<button class="retry-button" :disabled="extraBusy" @click="openExtra">10크레딧으로 1장 열기</button><span class="credit-status">1장당 10크레딧 · 횟수 제한 없음</span>
+<button class="retry-button" :disabled="extraBusy" @click="openExtra">3코인으로 1장 열기</button><span class="credit-status">1장당 3코인 · 횟수 제한 없음</span>
           </div>
         </article>
       </div>
@@ -79,7 +79,7 @@
       </div>
       <p v-if="errorMessage" class="match-error" role="alert">{{ errorMessage }} <button type="button" @click="loadDeck">다시 확인</button></p>
     </template>
-    <dialog ref="extraModal" class="social-dialog" @cancel="extraBusy&&$event.preventDefault()"><h2>추가 인연 열기</h2><template v-if="extraQuote"><p>10크레딧으로 오늘의 인연 1장을 추가로 엽니다.</p><p>보유 {{extraQuote.balance}}크레딧 · 다음 오전 8시 초기화</p><p>이미 소개한 상대는 제외하며, 조건에 맞는 새 인연이 없으면 차감되지 않습니다.</p><button :disabled="extraBusy" @click="extraModal.close()">취소</button><button class="retry-button" :disabled="extraBusy||extraQuote.balance<10" @click="buyExtra">{{extraBusy?'처리 중…':'10크레딧 사용 후 열기'}}</button></template><p v-if="extraError" role="alert">{{extraError}}</p></dialog>
+    <dialog ref="extraModal" class="social-dialog" @cancel="extraBusy&&$event.preventDefault()"><h2>추가 인연 열기</h2><template v-if="extraQuote"><p>{{extraQuote.cost}}코인으로 오늘의 인연 1장을 추가로 엽니다.</p><p>보유 {{extraQuote.balance}}크레딧 · 다음 오전 8시 초기화</p><p>이미 소개한 상대는 제외하며, 조건에 맞는 새 인연이 없으면 차감되지 않습니다.</p><button :disabled="extraBusy" @click="extraModal.close()">취소</button><button class="retry-button" :disabled="extraBusy||extraQuote.balance<extraQuote.cost" @click="buyExtra">{{extraBusy?'처리 중…':`${extraQuote.cost}코인 사용 후 열기`}}</button></template><p v-if="extraError" role="alert">{{extraError}}</p></dialog>
     <DirectMessageDialog ref="direct" /><MemberActions ref="actions" @changed="loadDeck"/>
   </section>
 </template>

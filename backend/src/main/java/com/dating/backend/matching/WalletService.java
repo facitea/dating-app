@@ -8,7 +8,7 @@ import jakarta.persistence.*;import lombok.RequiredArgsConstructor;import org.sp
  @Transactional(readOnly=true) public Wallet get(String email){var u=inbox.user(email);var w=em.find(CreditWallet.class,u.getId());return new Wallet(w==null?0:w.getBalance(),testTopup,em.createQuery("select e from CreditEntry e where e.userId=:u order by e.id desc",CreditEntry.class).setParameter("u",u.getId()).setMaxResults(100).getResultList());}
  @Transactional public Wallet topup(String email,Topup r){
   if(!testTopup)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"테스트 충전이 비활성화되어 있습니다.");
-  if(r==null||!List.of(100,300,500).contains(r.amount()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"충전 상품을 선택해 주세요.");
+  if(r==null||!List.of(10,50,180).contains(r.amount()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"충전 상품을 선택해 주세요.");
   try{UUID.fromString(r.requestId());}catch(Exception e){throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"잘못된 충전 요청입니다.");}
   var u=inbox.user(email);em.lock(u,LockModeType.PESSIMISTIC_WRITE);String key="TEST_TOPUP:"+r.requestId();
   var existing=em.createQuery("select e from CreditEntry e where e.userId=:u and e.referenceKey=:k",CreditEntry.class).setParameter("u",u.getId()).setParameter("k",key).getResultStream().findFirst().orElse(null);

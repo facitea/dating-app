@@ -1,11 +1,12 @@
 <template>
 <section class="trait-picker" :aria-label="mode==='answers'?'나는 어떤 사람인가':'어떤 사람을 만나고 싶은가'">
   <section v-for="section in sections" :key="section" class="trait-category">
-    <header><h2>{{section==='성격'?'성향':section}}</h2><span>{{count(section)}}개 선택 · 최대 3개</span></header>
+    <header><h2>{{section==='성격'?'성향':section}}</h2><span>{{count(section)}}개 선택 · 최대 {{limit(section)}}개</span></header>
     <div class="trait-keywords">
       <button v-if="mode==='preferences'" type="button" :aria-pressed="isAny(section)" @click="clearSection(section)">상관없음</button>
-      <button v-for="entry in entries(section)" :key="entry.group.key+':'+entry.item" type="button" :aria-pressed="selected(entry.group).includes(entry.item)" :disabled="!selected(entry.group).includes(entry.item) && count(section)>=3" @click="toggle(entry.group,entry.item)">{{entry.item}}</button>
+      <button v-for="entry in entries(section)" :key="entry.group.key+':'+entry.item" type="button" :aria-pressed="selected(entry.group).includes(entry.item)" :disabled="!selected(entry.group).includes(entry.item) && count(section)>=limit(section)" @click="toggle(entry.group,entry.item)">{{entry.item}}</button>
     </div>
+    <div v-if="section==='관심사·취미'" class="custom-interest"><input v-model="custom" maxlength="30" aria-label="관심사 직접 작성" placeholder="직접 작성" @keydown.enter.prevent="addCustom(section)"/><button type="button" @click="addCustom(section)">추가</button></div>
     <p v-if="notice.section===section" class="trait-note" role="status">{{notice.text}}</p>
     <p v-if="legacySimilar(section)" class="trait-note">이전에 저장한 유사 성향 조건은 키워드 또는 상관없음을 선택하면 변경됩니다.</p>
   </section>
@@ -17,7 +18,9 @@ import {catalog,parseTraits} from './traits';
 const props=defineProps({modelValue:String,mode:{type:String,default:'answers'},scope:{type:String,default:'all'}});
 const emit=defineEmits(['update:modelValue']);
 // Short, balanced lists. Previously saved choices remain visible and removable.
-const featured={
+const custom=ref('');const limit=section=>section==='관심사·취미'?10:3;
+function addCustom(section){const value=custom.value.trim();if(!value)return;const group=groups(section)[0];if(!selected(group).includes(value))toggle(group,value);custom.value='';}
+const featured={hobbies:true,
 personality:['밝은','차분한','다정한','배려심 있는','외향적인','내향적인','유머 있는','솔직한','책임감 있는','독립적인','감성적인','현실적인','계획적인','즉흥적인','호기심 많은','감정 기복이 적은'],
 talk_role:true,talk_mood:true,support:true,
 pace:true,romance:true,balance:true,
@@ -30,21 +33,22 @@ rhythm:true,holiday:true,exercise:['꾸준히 운동','가벼운 산책 중심']
 marriage:true,children:true,money:true,
 trust_behavior:['약속을 지키는','말과 행동이 같은'],respect_behavior:['상대의 속도를 존중하는','거절을 존중하는'],independence_behavior:['혼자 있는 시간을 존중하는'],initiative_behavior:['먼저 약속을 제안하는','결정을 함께하는'],conflict_behavior:['대화를 통해 해결하는','사과 뒤 행동을 바꾸는'],growth_behavior:['서로의 일을 응원하는'],longterm_behavior:['미래를 의논하는','책임을 나누는']
 };
-const allowed=computed(()=>catalog.filter(g=>props.scope==='personality'?g.key==='personality':props.scope==='more'?g.key!=='personality':true));
+const allowed=computed(()=>catalog.filter(g=>props.scope==='hobbies'?g.key==='hobbies':props.scope==='personality'?g.key==='personality':props.scope==='more'?g.key!=='personality':true));
 const sections=computed(()=>[...new Set(allowed.value.map(g=>g.section))]);
 const data=computed(()=>parseTraits(props.modelValue));
 const notice=ref({});
 const groups=section=>allowed.value.filter(g=>g.section===section);
 const rule=group=>data.value.preferences[group.key]||{mode:'ANY',values:[]};
 const selected=group=>props.mode==='answers'?(data.value.answers[group.key]||[]):(rule(group).values||[]);
-const entries=section=>groups(section).flatMap(group=>group.options.filter(item=>featured[group.key]===true||featured[group.key]?.includes(item)||selected(group).includes(item)).map(item=>({group,item})));
+const entries=section=>groups(section).flatMap(group=>[...new Set([...group.options,...selected(group)])].filter(item=>featured[group.key]===true||featured[group.key]?.includes(item)||selected(group).includes(item)).map(item=>({group,item})));
 const count=section=>groups(section).reduce((total,group)=>total+selected(group).length,0);
 const isAny=section=>groups(section).every(group=>rule(group).mode==='ANY');
 const legacySimilar=section=>props.mode==='preferences'&&groups(section).some(group=>rule(group).mode==='SIMILAR');
 function clearSection(section){const d=parseTraits(props.modelValue);for(const group of groups(section))d.preferences[group.key]={mode:'ANY',values:[]};notice.value={};emit('update:modelValue',JSON.stringify(d));}
-function toggle(group,item){const d=parseTraits(props.modelValue);let list=[...selected(group)];notice.value={};if(list.includes(item))list=list.filter(value=>value!==item);else if(count(group.section)<3)list.push(item);else{notice.value={section:group.section,text:'카테고리별 최대 3개까지 선택할 수 있어요.'};return;}if(props.mode==='answers')d.answers[group.key]=list;else{for(const other of groups(group.section))if(d.preferences[other.key]?.mode==='SIMILAR')d.preferences[other.key]={mode:'ANY',values:[]};d.preferences[group.key]={mode:list.length?'SPECIFIC':'ANY',values:list};}emit('update:modelValue',JSON.stringify(d));}
+function toggle(group,item){const d=parseTraits(props.modelValue);let list=[...selected(group)];notice.value={};if(list.includes(item))list=list.filter(value=>value!==item);else if(count(group.section)<limit(group.section))list.push(item);else{notice.value={section:group.section,text:`최대 ${limit(group.section)}개까지 선택할 수 있어요.`};return;}if(props.mode==='answers')d.answers[group.key]=list;else{for(const other of groups(group.section))if(d.preferences[other.key]?.mode==='SIMILAR')d.preferences[other.key]={mode:'ANY',values:[]};d.preferences[group.key]={mode:list.length?'SPECIFIC':'ANY',values:list};}emit('update:modelValue',JSON.stringify(d));}
 </script>
 <style scoped>
+.custom-interest{display:flex;gap:8px;margin-top:10px}.custom-interest input{min-width:0;flex:1;padding:9px;border:1px solid #e5c8ba;border-radius:9px}.custom-interest button{border:0;border-radius:9px;background:#b65c3f;color:white;padding:8px 14px}
 .trait-picker{display:block;min-width:0;color:#50382c}
 .trait-category{padding:0 0 16px;margin:0 0 16px;border-bottom:1px solid #efdfd3}
 .trait-category:last-child{padding-bottom:0;margin-bottom:0;border-bottom:0}

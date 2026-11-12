@@ -23,8 +23,8 @@ class SocialServiceTest {
  void time(String s){when(schedule.current()).thenReturn(DailyMatchSchedule.at(LocalDateTime.parse(s).atZone(ZoneId.of("Asia/Seoul")).toInstant()));}
  User person(String name,String gender){var u=User.builder().email(name+"@social.test").nickname(name).provider("LOCAL").status("ACTIVE").build();em.persist(u);em.persist(UserProfile.builder().userId(u.getId()).region("서울 강남구").mbti("ESFJ").build());em.persist(UserVerification.builder().userId(u.getId()).gender(gender).birthDate(LocalDate.of(1995,1,1)).build());em.persist(UserProfileImage.builder().userId(u.getId()).imageUrl("/uploads/test.jpg").imageOrder(0).isMain(true).build());return u;}
  void known(User x,User y){var card=new DailyMatchCard();card.setOwnerId(x.getId());card.setCycleDay(day);card.setSlot(0);card.setCandidateId(y.getId());card.setRevealedAt(Instant.now());em.persist(card);}
- SocialService.DirectRequest request(){return new SocialService.DirectRequest(b.getId(),"안녕하세요",UUID.randomUUID().toString(),10);}
- @Test void paidRoomChargesOnceAndRetryDoesNotDuplicateMessage(){var r=request();var first=social.direct(a.getEmail(),r);var retry=social.direct(a.getEmail(),r);assertEquals(10,first.charged());assertEquals(0,retry.charged());assertEquals(first.roomId(),retry.roomId());assertEquals(90,retry.balance());assertEquals(1,social.messages(a.getEmail(),first.roomId(),0,0).messages().size());social.decide(b.getEmail(),first.roomId(),true);social.send(b.getEmail(),first.roomId(),new SocialService.SendRequest("반가워요",UUID.randomUUID().toString()));assertEquals(1,social.rooms(a.getEmail()).get(0).unread());assertEquals(2,social.messages(a.getEmail(),first.roomId(),0,0).messages().size());assertEquals(0,social.rooms(a.getEmail()).get(0).unread());}
+ SocialService.DirectRequest request(){return new SocialService.DirectRequest(b.getId(),"안녕하세요",UUID.randomUUID().toString(),20);}
+ @Test void paidRoomChargesOnceAndRetryDoesNotDuplicateMessage(){var r=request();var first=social.direct(a.getEmail(),r);var retry=social.direct(a.getEmail(),r);assertEquals(20,first.charged());assertEquals(0,retry.charged());assertEquals(first.roomId(),retry.roomId());assertEquals(80,retry.balance());assertEquals(1,social.messages(a.getEmail(),first.roomId(),0,0).messages().size());social.decide(b.getEmail(),first.roomId(),true);social.send(b.getEmail(),first.roomId(),new SocialService.SendRequest("반가워요",UUID.randomUUID().toString()));assertEquals(1,social.rooms(a.getEmail()).get(0).unread());assertEquals(2,social.messages(a.getEmail(),first.roomId(),0,0).messages().size());assertEquals(0,social.rooms(a.getEmail()).get(0).unread());}
  @Test void mutualLikesCreateOneFreeRoom(){assertFalse(social.like(a.getEmail(),b.getId()).matched());assertEquals(1,social.overview(b.getEmail()).received().size());var match=social.like(b.getEmail(),a.getId());assertTrue(match.matched());assertEquals(match.roomId(),social.like(a.getEmail(),b.getId()).roomId());assertEquals(1,social.overview(a.getEmail()).matched().size());assertEquals(0,social.quote(a.getEmail(),b.getId()).cost());assertEquals(0,social.direct(a.getEmail(),request()).charged());assertEquals(100,em.find(CreditWallet.class,a.getId()).getBalance());}
  @Test void insufficientCreditCreatesNothing(){em.find(CreditWallet.class,a.getId()).setBalance(9);assertThrows(ResponseStatusException.class,()->social.direct(a.getEmail(),request()));assertEquals(0,em.createQuery("select count(r) from ChatRoom r",Long.class).getSingleResult());assertEquals(9,em.find(CreditWallet.class,a.getId()).getBalance());}
  @Test void strangerCannotReadOrSendAndReportStopsContact(){var r=social.direct(a.getEmail(),request());assertEquals(404,assertThrows(ResponseStatusException.class,()->social.messages(c.getEmail(),r.roomId(),0,0)).getStatusCode().value());assertThrows(ResponseStatusException.class,()->social.send(c.getEmail(),r.roomId(),new SocialService.SendRequest("bad",UUID.randomUUID().toString())));em.persist(UserReport.builder().reporterUserId(b.getId()).reportedUserId(a.getId()).reasonCode("OTHER").detail("test").build());assertThrows(ResponseStatusException.class,()->social.send(a.getEmail(),r.roomId(),new SocialService.SendRequest("blocked",UUID.randomUUID().toString())));}
@@ -134,8 +134,9 @@ class SocialServiceTest {
   var room=social.direct(a.getEmail(),request()).roomId();var initial=social.messages(a.getEmail(),room,0,0);var id=initial.messages().get(0).id();assertTrue(initial.peerReadThrough()<id);
   social.messages(b.getEmail(),room,0,0);var polled=social.messages(a.getEmail(),room,id,0);assertTrue(polled.messages().isEmpty());assertEquals(id,polled.peerReadThrough());
  }
+ @Test void readLikesBelongToRecipientAndRejectPreventsAccidentalMatch(){social.like(a.getEmail(),b.getId());social.readLikes(c.getEmail(),List.of(a.getId()));assertFalse(social.overview(a.getEmail()).sent().get(0).seen());social.readLikes(b.getEmail(),List.of(a.getId()));assertTrue(social.overview(a.getEmail()).sent().get(0).seen());social.rejectLike(b.getEmail(),a.getId());assertTrue(social.overview(b.getEmail()).received().isEmpty());assertFalse(social.like(a.getEmail(),b.getId()).matched());assertTrue(social.like(b.getEmail(),a.getId()).matched());}
  @Test void creditTopupIsIdempotentAndLedgerMatchesBalance(){
-  var r=new WalletService.Topup(100,UUID.randomUUID().toString());assertEquals(200,wallet.topup(a.getEmail(),r).balance());assertEquals(200,wallet.topup(a.getEmail(),r).balance());assertEquals(1,wallet.get(a.getEmail()).entries().size());
+  var r=new WalletService.Topup(50,UUID.randomUUID().toString());assertEquals(150,wallet.topup(a.getEmail(),r).balance());assertEquals(150,wallet.topup(a.getEmail(),r).balance());assertEquals(1,wallet.get(a.getEmail()).entries().size());
   assertEquals(1,inbox.list(a.getEmail(),0).size());assertThrows(ResponseStatusException.class,()->wallet.topup(a.getEmail(),new WalletService.Topup(999,UUID.randomUUID().toString())));
  }
  @Test void inboxOwnershipAndReportCompletion(){
@@ -164,7 +165,7 @@ class SocialServiceTest {
   assertEquals("ACCEPTED",social.decide(b.getEmail(),r.roomId(),true).state());
   social.decide(b.getEmail(),r.roomId(),false);
   social.send(a.getEmail(),r.roomId(),new SocialService.SendRequest("accepted",UUID.randomUUID().toString()));
-  assertEquals(90,wallet.get(a.getEmail()).balance());
+  assertEquals(80,wallet.get(a.getEmail()).balance());
  }
  @Test void declineRefundsExactlyOnceAndCannotReopenForFree(){
   var r=social.direct(a.getEmail(),request());
@@ -205,7 +206,7 @@ class SocialServiceTest {
  @Test void acceptedPaidRequestKeepsChargeAfterExpiry(){
   var r=social.direct(a.getEmail(),request());social.decide(b.getEmail(),r.roomId(),true);
   em.find(DirectChatRequest.class,r.roomId()).setExpiresAt(Instant.now().minusSeconds(1));chatRequests.expireOne(r.roomId());
-  assertEquals(90,wallet.get(a.getEmail()).balance());assertEquals("ACCEPTED",em.find(DirectChatRequest.class,r.roomId()).getState());
+  assertEquals(80,wallet.get(a.getEmail()).balance());assertEquals("ACCEPTED",em.find(DirectChatRequest.class,r.roomId()).getState());
  }
  String ownedPhoto(Long owner){try{var dir=java.nio.file.Path.of("build/test-uploads/profile");java.nio.file.Files.createDirectories(dir);String name="user-"+owner+"-"+UUID.randomUUID()+".jpg";var file=dir.resolve(name);javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(200,200,java.awt.image.BufferedImage.TYPE_INT_RGB),"jpg",file.toFile());testFiles.add(file);return "/uploads/profile/"+name;}catch(Exception e){throw new RuntimeException(e);}}
  java.util.List<java.nio.file.Path> testFiles=new java.util.ArrayList<>();

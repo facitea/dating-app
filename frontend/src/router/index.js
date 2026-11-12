@@ -48,6 +48,7 @@ const routes = [
       { path: "/home", redirect: "/today" },
       { path: "/today", component: Today },
       { path: "/matches", component: MatchStatus },
+      { path: "/community", component: () => import("../views/user/Community.vue") },
       { path: "/chats", component: Chats },
       { path: "/chats/:id", component: ChatRoom },
       { path: "/members/:id", component: MemberProfile },
@@ -70,7 +71,7 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-  if(hasToken()&&!to.path.startsWith("/admin")&&!["/selfie-required","/support","/legal","/settings","/profile/photos"].includes(to.path)){try{if((await api.get("/selfie/request")).data.required)return "/selfie-required";}catch{/* Existing auth guard handles expired sessions. */}}
+  if (hasToken() && !to.path.startsWith("/admin") && !["/selfie-required", "/support", "/legal", "/settings", "/profile/photos"].includes(to.path)) { try { if ((await api.get("/selfie/request")).data.required) return "/selfie-required"; } catch {/* Existing auth guard handles expired sessions. */ } }
   if (to.meta.requiresAuth && !hasToken()) {
     return "/";
   }

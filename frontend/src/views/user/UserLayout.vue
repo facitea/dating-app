@@ -9,11 +9,11 @@
     </div>
 
     <template v-else>
-      <div v-if="eligible" class="app-topbar" :class="{'inline-topbar':true,'compact-profile-bar':route.path.startsWith('/members/')}"><RouterLink to="/notifications" :aria-label="`알림 모아보기${inboxUnread?' · 새 알림 '+inboxUnread+'개':''}`"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9 21h6"/></svg><span v-if="inboxUnread">{{inboxUnread>99?'99+':inboxUnread}}</span></RouterLink></div><main class="user-app-main">
+      <div v-if="eligible && !route.path.startsWith('/chats/')" class="app-topbar" :class="{'inline-topbar':true,'compact-profile-bar':route.path.startsWith('/members/')}"><RouterLink to="/notifications" :aria-label="`알림 모아보기${inboxUnread?' · 새 알림 '+inboxUnread+'개':''}`"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9 21h6"/></svg><span v-if="inboxUnread">{{inboxUnread>99?'99+':inboxUnread}}</span></RouterLink></div><main class="user-app-main" :class="{'chat-main':route.path.startsWith('/chats/')}">
         <router-view />
       </main>
 
-      <nav class="bottom-nav" aria-label="사용자 하단 내비게이션">
+      <nav v-if="!route.path.startsWith('/chats/')" class="bottom-nav" aria-label="사용자 하단 내비게이션">
         <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" :aria-label="item.label + (badge(item.to) ? ' · 새 소식 있음' : '')" class="nav-item" :class="{ active: route.path === item.to || route.path.startsWith(item.to + '/' ) }">
           <span class="nav-icon-wrap"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path :d="item.icon" />
@@ -62,6 +62,9 @@ const navItems = [
     icon: "M5.25 5.25h13.5a1.5 1.5 0 0 1 1.5 1.5v8.25a1.5 1.5 0 0 1-1.5 1.5H10.5l-4.95 3.3a.75.75 0 0 1-1.17-.62V16.5h-.63a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm2.25 4.13a.88.88 0 1 0 0 1.75.88.88 0 0 0 0-1.75Zm4.5 0a.88.88 0 1 0 0 1.75.88.88 0 0 0 0-1.75Zm4.5 0a.88.88 0 1 0 0 1.75.88.88 0 0 0 0-1.75Z",
   },
   {
+    to: "/community", label:"커뮤니티", icon:"M3 4h18v13H9l-6 4V4Z M7 8h10M7 12h7"
+  },
+  {
     to: "/profile",
     label: "프로필",
     icon: "M12 12.25a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 1.75c-4.05 0-7.25 2.28-7.25 5.08 0 .65.52 1.17 1.17 1.17h12.16c.65 0 1.17-.52 1.17-1.17 0-2.8-3.2-5.08-7.25-5.08Z",
@@ -105,6 +108,7 @@ onMounted(async () => {
 
 .user-app-shell { min-height: 100vh; }.user-app-shell.white-surface{background:#fff;}
 .user-app-main { min-height: 100vh; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.user-app-main.chat-main { padding-bottom: 0; min-height: 100dvh; }
 .user-app-loading { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
 .loading-card {
   width: min(100%, 420px);
@@ -132,7 +136,7 @@ onMounted(async () => {
   transform: translateX(-50%);
   width: min(calc(100% - 24px), 520px);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 10px;
   border-radius: 28px;

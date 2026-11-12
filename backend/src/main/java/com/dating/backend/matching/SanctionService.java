@@ -20,7 +20,7 @@ import com.dating.backend.entity.*;import jakarta.persistence.*;import lombok.Re
    em.createQuery("update RefreshToken t set t.revoked=true,t.revokedAt=:now where t.userId=:u").setParameter("now",LocalDateTime.now()).setParameter("u",userId).executeUpdate();
   }
   em.persist(AdminReviewHistory.builder().userId(userId).actionType("REPORT_"+action).detail("신고 #"+reportId+" · "+label+" · "+reason).actorLabel("관리자").build());
-  inbox.add(userId,"SANCTION:"+reportId,"계정 조치 안내: "+label,reason,"/notifications");
+  inbox.add(userId,"SANCTION:"+reportId,"나에 대한 신고 · 계정 조치: "+label,"회원님은 이 신고의 대상자입니다. 처리 사유: "+reason,"/notifications");
  }
  @Transactional public void expire(Long id){var u=em.find(User.class,id,LockModeType.PESSIMISTIC_WRITE);if(u!=null&&"TEMPORARY".equals(u.getSanctionType())&&u.getSuspendedUntil()!=null&&!u.getSuspendedUntil().isAfter(Instant.now()))release(u,"기간 정지가 만료되었습니다.");}
  @Scheduled(fixedDelay=30000) @Transactional public void expireDue(){for(var u:em.createQuery("select u from User u where u.sanctionType='TEMPORARY' and u.suspendedUntil<=:now",User.class).setParameter("now",Instant.now()).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList())release(u,"기간 정지가 만료되었습니다.");}

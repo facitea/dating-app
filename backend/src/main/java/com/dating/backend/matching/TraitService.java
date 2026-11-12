@@ -45,7 +45,7 @@ public class TraitService {
     }
     private void validateValues(String key,List<String> values) {
         var g=catalog.get(key);
-        if(g==null||values==null||values.size()>g.max()||new HashSet<>(values).size()!=values.size()||!g.options().containsAll(values))throw invalid();
+        if(g==null||values==null||values.size()>g.max()||new HashSet<>(values).size()!=values.size()||!("hobbies".equals(key)?values.stream().allMatch(v->v!=null&&!v.isBlank()&&v.length()<=30&&!v.matches(".*[\\p{Cntrl}<>].*")):g.options().containsAll(values)))throw invalid();
     }
     public String wishes(String raw) {
         var d=read(normalize(raw));

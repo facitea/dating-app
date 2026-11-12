@@ -11,6 +11,7 @@ public class AdminFilter extends OncePerRequestFilter {
   if(path.matches("/api/admin/console/members/[0-9]+/blocks"))return method.equals("GET")&&role.equals("SUPPORT");
   if(path.matches("/api/admin/console/members/[0-9]+/compensation"))return method.equals("POST")&&role.equals("SUPPORT");
   if(path.matches("/api/admin/safety/reports/[0-9]+/conversation"))return method.equals("GET")&&Set.of("SUPPORT","REVIEWER").contains(role);
+  if(path.startsWith("/api/admin/community"))return role.equals("SUPPORT");
   if(path.startsWith("/api/admin/photo-duplicates"))return role.equals("REVIEWER");
   if(path.startsWith("/api/admin/photo-history"))return role.equals("REVIEWER");
   if(path.startsWith("/api/admin/selfies"))return role.equals("REVIEWER");
