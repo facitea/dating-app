@@ -6,6 +6,7 @@ public class CommunityPost {
  @Column(nullable=false) private Long authorId; private Long parentId;
  private String category; @Column(length=80) private String title;
  @Column(length=3000) private String body;
+ private String imageKey;
  private boolean hidden;private boolean deleted;
  private Instant createdAt=Instant.now();
 }

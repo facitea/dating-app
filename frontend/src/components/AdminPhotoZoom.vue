@@ -9,8 +9,8 @@
 </template>
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'; import { useRoute } from 'vue-router'; const route = useRoute(), modal = ref(), source = ref(''), zoom = ref(1);
-function open(e) { if (!route.path.startsWith('/admin/') || !e.target?.matches?.('.review-photos img,.compare img,.history-grid img,.duplicate-photos img')) return; const src = e.target.currentSrc || e.target.src; if (!src) return; source.value = src; zoom.value = 1; modal.value.showModal(); }
-function key(e) { if (e.key === 'Enter' || e.key === ' ') { if (e.target?.matches?.('.review-photos img,.compare img,.history-grid img,.duplicate-photos img')) { e.preventDefault(); open(e); } } } function backdrop(e) { if (e.target === modal.value) modal.value.close(); }
+function open(e) { if (!route.path.startsWith('/admin/') || !e.target?.matches?.('.review-photos img,.compare img,.history-grid img,.duplicate-photos img,.community-moderation img')) return; const src = e.target.currentSrc || e.target.src; if (!src) return; source.value = src; zoom.value = 1; modal.value.showModal(); }
+function key(e) { if (e.key === 'Enter' || e.key === ' ') { if (e.target?.matches?.('.review-photos img,.compare img,.history-grid img,.duplicate-photos img,.community-moderation img')) { e.preventDefault(); open(e); } } } function backdrop(e) { if (e.target === modal.value) modal.value.close(); }
 onMounted(() => { document.addEventListener('click', open); document.addEventListener('keydown', key); }); onUnmounted(() => { document.removeEventListener('click', open); document.removeEventListener('keydown', key); }); watch(() => route.fullPath, () => modal.value?.close());
 </script>
 <style

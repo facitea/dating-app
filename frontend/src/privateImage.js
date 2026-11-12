@@ -8,8 +8,9 @@ async function update(el, binding) {
     try {
         const url = new URL(binding.value, window.location.origin);
         if (url.protocol === 'blob:') { el.src = url.href; return; }
-        if (!url.pathname.startsWith('/uploads/')) throw new Error('Unsupported image');
-        const endpoint = (binding.modifiers.admin ? '/admin/media/' : '/media/') + url.pathname.slice('/uploads/'.length);
+        const community = /^\/community\/\d+\/photo$/.test(url.pathname);
+        if (!community && !url.pathname.startsWith('/uploads/')) throw new Error('Unsupported image');
+        const endpoint = community ? (binding.modifiers.admin ? '/admin' : '') + url.pathname : (binding.modifiers.admin ? '/admin/media/' : '/media/') + url.pathname.slice('/uploads/'.length);
         const { data } = await api.get(endpoint, { responseType: 'blob', signal: s.cancel.signal });
         if (state.get(el) !== s) return; s.url = URL.createObjectURL(data); el.src = s.url;
     } catch (e) { if (!s.cancel.signal.aborted) el.dispatchEvent(new Event('error')); }

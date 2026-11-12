@@ -14,18 +14,18 @@
 
 .mobile-client :is(.auth-page, .review-page, .complete-page, .signup-page, .simple-page, .profile-page, .support-page, .today-page) {
   min-height: 100dvh !important;
-  padding: max(20px, env(safe-area-inset-top)) 16px 24px !important;
+  padding: max(20px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 16px 24px !important;
   align-items: flex-start !important;
 }
 
 .mobile-client .user-app-main.chat-main {padding-bottom:0;}
 .mobile-client .user-app-main {
   min-height: 100dvh;
-  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  padding-bottom: calc(84px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 .mobile-client .user-app-main :is(.simple-page, .profile-page, .support-page, .today-page) {
-  min-height: calc(100dvh - 84px - env(safe-area-inset-bottom)) !important;
+  min-height: calc(100dvh - 84px - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) !important;
 }
 
 .mobile-client :is(.auth-card, .review-card, .complete-card, .signup-card) {
@@ -131,7 +131,7 @@
 .mobile-client .bottom-nav {
   bottom: 0 !important;
   width: min(100%, 480px) !important;
-  padding: 6px 12px calc(6px + env(safe-area-inset-bottom)) !important;
+  padding: 6px 12px calc(6px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) !important;
   border-radius: 22px 22px 0 0 !important;
   gap: 4px !important;
 }
@@ -208,7 +208,7 @@
   max-height: 90dvh;
   overflow-y: auto !important;
   border-radius: 26px 26px 0 0 !important;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 
 .mobile-client .summary-list {
@@ -303,3 +303,19 @@
     padding-inline: 12px !important;
   }
 }
+/* Shared customer header: one safe area, one title baseline. */
+.mobile-client { --client-top: calc(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) + 20px); }
+.mobile-client .user-app-main > :is(.social-page,.today-page,.profile-page,.support-page,.simple-page) { padding-top:var(--client-top)!important; }
+.mobile-client .user-app-main :is(.match-heading,.community-head,.utility-header) { min-height:42px; margin:0 0 20px; align-items:center; }
+.mobile-client .user-app-main :is(.social-page>h1,.match-heading h1,.community-head h1,.utility-header h1) { font-size:20px!important; font-weight:700; line-height:26px; letter-spacing:-.04em; }
+.mobile-client .user-app-main .social-page>h1 { display:flex; align-items:center; min-height:42px; margin:0 0 20px; }
+.mobile-client .user-app-main :is(.community-head,.utility-header) h1 { margin:0; }
+.mobile-client .app-topbar.inline-topbar { top:var(--client-top); }
+/* Only the message list scrolls; the composer follows the visible viewport. */
+.mobile-client .user-app-main.chat-main { min-height:0; height:var(--chat-height,100dvh); padding:0; }
+.mobile-client .chat-main .conversation { position:fixed; top:var(--chat-top,0px); left:50%; transform:translateX(-50%); width:min(100%,480px); height:var(--chat-height,100dvh); min-height:0; padding:calc(var(--safe-area-inset-top,env(safe-area-inset-top,0px)) + 8px) 16px calc(var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)) + 8px)!important; overflow:hidden; }
+.mobile-client .chat-main .conversation.keyboard-open { padding-bottom:8px!important; }
+.mobile-client .chat-main .conversation>header { flex:none; min-height:48px; padding-bottom:8px; }
+.mobile-client .chat-main .messages { min-height:0; }
+.mobile-client .chat-main .composer { flex:none; margin:0; padding-top:8px; }
+.mobile-client .chat-main .composer textarea { height:44px; padding:10px 12px; }

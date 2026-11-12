@@ -8,4 +8,24 @@ import com.dating.backend.entity.User;import jakarta.persistence.EntityManager;i
  @Test void blockedAuthorsNotVisibleAndReportsAreDeduplicated(){var p=post();service.report(b.getEmail(),p.id(),"광고 의심");service.report(b.getEmail(),p.id(),"광고 의심");assertEquals(1L,em.createQuery("select count(r) from CommunityReport r",Long.class).getSingleResult());var v=new MemberVisibility();v.setOwnerId(a.getId());v.setTargetId(b.getId());v.setBlocked(true);em.persist(v);assertTrue(service.list(b.getEmail(),"ALL",0).isEmpty());assertThrows(ResponseStatusException.class,()->service.thread(b.getEmail(),p.id()));assertThrows(ResponseStatusException.class,()->service.report(b.getEmail(),p.id(),"test"));}
  @Test void rateLimitsAndNonActiveMembers(){post();assertThrows(ResponseStatusException.class,()->post());b.setStatus("SUSPENDED");assertThrows(ResponseStatusException.class,()->service.list(b.getEmail(),"ALL",0));}
  @Test void customHobbiesAreBoundedAndPreserved(){var raw="{\"answers\":{\"hobbies\":[\"수영\",\"천체 사진 촬영\"]}}";assertTrue(traits.normalize(raw).contains("천체 사진 촬영"));assertThrows(ResponseStatusException.class,()->traits.normalize("{\"answers\":{\"hobbies\":[\"<script>\"]}}"));assertThrows(ResponseStatusException.class,()->traits.normalize("{\"answers\":{\"hobbies\":[\"수영\",\"수영\"]}}"));}
+
+ @Autowired CommunityPhotos photos;
+ @Test void photosFollowPostVisibilityAndCannotBeFetchedAfterDeletion() throws Exception {
+  var bytes=new java.io.ByteArrayOutputStream();javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(40,30,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",bytes);
+  var file=new org.springframework.mock.web.MockMultipartFile("photo","test.png","image/png",bytes.toByteArray());
+  var p=service.createWithPhoto(a.getEmail(),new CommunityService.Write("DAILY","사진","사진 테스트",null),file);
+  var entity=em.find(CommunityPost.class,p.id());var key=entity.getImageKey();
+  try{
+   assertEquals("/community/"+p.id()+"/photo",p.imageUrl());assertTrue(service.photo(b.getEmail(),p.id()).length>0);
+   entity.setHidden(true);assertThrows(ResponseStatusException.class,()->service.photo(b.getEmail(),p.id()));entity.setHidden(false);
+   var block=new MemberVisibility();block.setOwnerId(b.getId());block.setTargetId(a.getId());block.setBlocked(true);em.persist(block);
+   assertThrows(ResponseStatusException.class,()->service.photo(b.getEmail(),p.id()));block.setBlocked(false);
+   b.setStatus("SUSPENDED");assertThrows(ResponseStatusException.class,()->service.photo(b.getEmail(),p.id()));b.setStatus("ACTIVE");
+   service.delete(a.getEmail(),p.id());assertThrows(ResponseStatusException.class,()->service.photo(b.getEmail(),p.id()));
+  }finally{photos.remove(key);}
+ }
+ @Test void invalidImagesAndPathTraversalRejected(){
+  assertThrows(ResponseStatusException.class,()->photos.store(new org.springframework.mock.web.MockMultipartFile("photo","a.jpg","image/jpeg","not an image".getBytes())));
+  assertThrows(ResponseStatusException.class,()->photos.read("../../secret"));
+ }
 }

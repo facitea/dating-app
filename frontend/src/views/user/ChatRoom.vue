@@ -1,5 +1,5 @@
 <template>
-    <section class="social-page conversation">
+    <section class="social-page conversation" :class="{'keyboard-open': keyboardOpen}">
         <header>
             <RouterLink to="/chats" aria-label="채팅 목록">‹</RouterLink>
             <AvatarLink v-if="person" :person="person" class="header-avatar" />
@@ -32,7 +32,7 @@
                 <p>요청자에게 크레딧이 반환됐어요.</p>
             </template>
         </div>
-        <form v-if="request?.state === 'ACCEPTED'" class="composer" @submit.prevent="send"><textarea ref="input"
+        <form v-if="request?.state === 'ACCEPTED'" class="composer" @submit.prevent="send"><textarea ref="input" rows="1"
                 :value="draft" @input="draft = $event.target.value" maxlength="2000" aria-label="메시지" placeholder="메시지 입력" @keydown="enter" /><button
                 @pointerdown.prevent="input?.focus()" class="primary"
                 :disabled="sending || !draft.trim() || !person">{{ sending ? '…' : '전송' }}</button></form>
@@ -46,7 +46,20 @@ import MemberActions from '../../components/MemberActions.vue';
 import { refreshBadges } from "../../components/notificationEvents";
 import { requestId } from "../../components/requestId";
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'; import { useRoute, useRouter } from 'vue-router'; import api from '../../api/api'; import '../../components/social.css';
-const input = ref();
+const input = ref(), keyboardOpen = ref(false);
+let viewportFrame;
+function syncViewport() {
+  cancelAnimationFrame(viewportFrame);
+  viewportFrame=requestAnimationFrame(()=>{
+    const viewport=window.visualViewport;
+    document.documentElement.style.setProperty('--chat-height',`${viewport?.height ?? window.innerHeight}px`);
+    document.documentElement.style.setProperty('--chat-top',`${viewport?.offsetTop ?? 0}px`);
+    keyboardOpen.value=document.activeElement===input.value && (viewport?.height ?? window.innerHeight)<window.screen.height*.8;
+    if(document.activeElement===input.value)bottom();
+  });
+}
+onMounted(()=>{syncViewport();window.visualViewport?.addEventListener('resize',syncViewport);window.visualViewport?.addEventListener('scroll',syncViewport);window.addEventListener('resize',syncViewport);});
+onUnmounted(()=>{cancelAnimationFrame(viewportFrame);window.visualViewport?.removeEventListener('resize',syncViewport);window.visualViewport?.removeEventListener('scroll',syncViewport);window.removeEventListener('resize',syncViewport);document.documentElement.style.removeProperty('--chat-height');document.documentElement.style.removeProperty('--chat-top');});
 const request = ref(), deciding = ref(false);
 const matched = ref(false), peerReadThrough = ref(0), actions = ref(), router = useRouter(), route = useRoute(), room = route.params.id, person = ref(), messages = ref([]), draft = ref(''), error = ref(''), list = ref(), loading = ref(false), sending = ref(false), hasOlder = ref(false); let timer, disposed = false, pending, fetched = 0;
 async function load(older = false) { if (loading.value || disposed || document.hidden) return; loading.value = true; const el = list.value, near = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 100, oldHeight = el?.scrollHeight || 0; try { const first = messages.value[0]?.id, last = fetched; const { data } = await api.get(`/social/rooms/${room}/messages`, { params: older ? { before: first } : last ? { after: last } : {} }); if (disposed) return; person.value = data.person; request.value = data.request; matched.value = !!data.matched; peerReadThrough.value = data.peerReadThrough || 0; if (data.messages.length) refreshBadges(); if (!older && data.messages.length) fetched = data.messages.at(-1).id; const all = new Map(messages.value.map(m => [m.id, m])); data.messages.forEach(m => all.set(m.id, m)); messages.value = [...all.values()].sort((a, b) => a.id - b.id); if (older || !last) hasOlder.value = data.hasOlder; error.value = ''; await nextTick(); if (older) list.value.scrollTop += list.value.scrollHeight - oldHeight; else if (near) bottom(); } catch (e) { error.value = e.response?.data?.message || '대화를 불러오지 못했어요.'; } finally { loading.value = false; } }
