@@ -319,3 +319,8 @@
 .mobile-client .chat-main .messages { min-height:0; }
 .mobile-client .chat-main .composer { flex:none; margin:0; padding-top:8px; }
 .mobile-client .chat-main .composer textarea { height:44px; padding:10px 12px; }
+
+/* Public profile header must also respect native SystemBars insets. */
+.mobile-client .public-profile { padding-top:var(--client-top,calc(var(--safe-area-inset-top,env(safe-area-inset-top,0px)) + 20px)); }
+.mobile-client .public-profile .profile-header { height:42px; margin-bottom:12px; }
+.mobile-client .app-topbar.compact-profile-bar { top:var(--client-top); }

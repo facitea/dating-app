@@ -12,7 +12,7 @@
             <h2>충전·사용내역</h2>
             <p v-if="!wallet.entries.length" class="social-empty">아직 사용내역이 없어요.</p>
             <article v-for="e in wallet.entries" :key="e.id" class="ledger">
-                <div><strong>{{ e.referenceKey?.startsWith('COMPENSATION:') ? '서비스 보상':e.referenceKey?.startsWith('DIRECT_REFUND:')?'대화 요청 크레딧 반환':e.referenceKey?.startsWith('TEST_TOPUP:')?'테스트 충전':e.referenceKey?.startsWith('EXTRA:')?'추가 인연 열기':e.amount<0?'대화 요청':'크레딧 지급'}}</strong>
+                <div><strong>{{ e.referenceKey?.startsWith('PROFILE_REWARD:') ? '프로필 완성 보상':e.referenceKey?.startsWith('COMPENSATION:') ? '서비스 보상':e.referenceKey?.startsWith('DIRECT_REFUND:')?'대화 요청 크레딧 반환':e.referenceKey?.startsWith('TEST_TOPUP:')?'테스트 충전':e.referenceKey?.startsWith('EXTRA:')?'추가 인연 열기':e.amount<0?'대화 요청':'크레딧 지급'}}</strong>
                             <p v-if="e.message" class="muted">{{ e.message }}</p><time>{{ new
                                 Date(e.createdAt).toLocaleString('ko-KR')}}</time></div><b
                     :class="{ plus: e.amount > 0 }">{{ e.amount > 0 ? '+' : '' }}{{ e.amount }} C</b>
