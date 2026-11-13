@@ -1,11 +1,11 @@
 <template>
   <section class="social-page community">
-    <header class="community-head"><button v-if="thread" class="back" aria-label="목록으로" @click="thread=null">‹</button><h1>{{thread?'게시글':'커뮤니티'}}</h1></header>
+    <header class="community-head"><button v-if="thread" class="back" aria-label="목록으로" @click="backToList">‹</button><h1>{{thread?'게시글':'커뮤니티'}}</h1></header>
     <p v-if="error" class="feedback" role="alert">{{error}}</p><p v-if="notice" class="feedback" role="status">{{notice}}</p>
     <template v-if="!thread">
-      <nav class="board-tabs" aria-label="게시판"><button v-for="c in categories" :key="c[0]" :aria-current="category===c[0]?'page':undefined" :class="{selected:category===c[0]}" @click="category=c[0];load()">{{c[1]}}</button></nav>
+      <div class="collection-tabs" aria-label="글 모아보기"><button :class="{selected:!mine}" :aria-pressed="!mine" @click="mine=false;load()">전체 글</button><button :class="{selected:mine}" :aria-pressed="mine" @click="mine=true;load()">내 글</button></div><nav class="board-tabs" aria-label="게시판"><button v-for="c in categories" :key="c[0]" :aria-current="category===c[0]?'page':undefined" :class="{selected:category===c[0]}" @click="category=c[0];load()">{{c[1]}}</button></nav>
       <div class="board-toolbar"><span>최근 이야기</span><button class="write-button" @click="editor.showModal()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15l-1 5Z"/></svg>글쓰기</button></div>
-      <p v-if="!posts.length&&!busy" class="social-empty">아직 이야기가 없어요.<br>첫 글을 남겨보세요.</p>
+      <p v-if="!posts.length&&!busy" class="social-empty">{{mine?'아직 작성한 글이 없어요.':'아직 이야기가 없어요.'}}<br>첫 글을 남겨보세요.</p>
       <p v-if="busy&&!posts.length" class="social-empty" role="status">불러오는 중…</p>
       <div class="post-list"><button v-for="p in posts" :key="p.id" class="post-preview" @click="open(p.id)"><div class="post-copy"><span class="category-label">{{label(p.category)}}</span><h2>{{p.title}}</h2><p>{{p.body}}</p><div class="post-meta"><span>{{p.author}}</span><i>·</i><time>{{date(p.createdAt)}}</time></div></div><img v-if="p.imageUrl" v-private-src="p.imageUrl" class="post-thumb" alt="첨부 사진" loading="lazy"/></button></div>
       <button v-if="more" class="load-more" :disabled="busy" @click="load(true)">{{busy?'불러오는 중…':'이야기 더 보기'}}</button>
@@ -20,22 +20,27 @@
   </section>
 </template>
 <script setup>
-import {ref,onMounted,onUnmounted} from 'vue';import api from '../../api/api';import '../../components/social.css';
+import {ref,onMounted,onUnmounted,watch} from 'vue';import {useRoute,useRouter} from 'vue-router';import api from '../../api/api';import '../../components/social.css';
+const route=useRoute(),router=useRouter(),mine=ref(false);
 const posts=ref([]),thread=ref(null),editor=ref(),category=ref('ALL'),busy=ref(false),more=ref(false),error=ref(''),notice=ref(''),comment=ref(''),form=ref({category:'ADVICE',title:'',body:''});
 const photoPreview=ref(''),photoBusy=ref(false),photoInput=ref();let photo=null,seq=0;
 const categories=[['ALL','전체'],['ADVICE','고민 상담'],['DATING','연애 이야기'],['DAILY','일상']];const label=v=>categories.find(c=>c[0]===v)?.[1];
 function date(v){const d=new Date(v),minutes=Math.max(0,Math.floor((Date.now()-d)/60000));return minutes<1?'방금 전':minutes<60?`${minutes}분 전`:minutes<1440?`${Math.floor(minutes/60)}시간 전`:d.toLocaleDateString('ko-KR',{month:'long',day:'numeric'});}
 function clearPhoto(){if(photoPreview.value)URL.revokeObjectURL(photoPreview.value);photoPreview.value='';photo=null;}
 async function choosePhoto(e){const file=e.target.files?.[0];e.target.value='';if(!file)return;photoBusy.value=true;error.value='';let bitmap;try{bitmap=await createImageBitmap(file);const ratio=Math.min(1,1200/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*ratio));canvas.height=Math.max(1,Math.round(bitmap.height*ratio));const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.8));if(!blob)throw new Error();clearPhoto();photo=blob;photoPreview.value=URL.createObjectURL(blob);}catch{error.value='사진을 열 수 없어요. 다른 사진을 선택해 주세요.';}finally{bitmap?.close();photoBusy.value=false;}}
-async function load(append=false){const id=++seq;busy.value=true;error.value='';try{const {data}=await api.get('/community',{params:{category:category.value,before:append?posts.value.at(-1)?.id:0}});if(id!==seq)return;posts.value=append?[...posts.value,...data]:data;more.value=data.length===20;}catch(e){error.value=e.response?.data?.message||'목록을 불러오지 못했어요.';}finally{if(id===seq)busy.value=false;}}
-async function open(id){error.value='';try{thread.value=(await api.get(`/community/${id}`)).data;comment.value='';window.scrollTo({top:0});}catch(e){error.value=e.response?.data?.message||'게시글을 불러오지 못했어요.';}}
+async function load(append=false){const id=++seq;busy.value=true;error.value='';try{const {data}=await api.get('/community',{params:{category:category.value,mine:mine.value,before:append?posts.value.at(-1)?.id:0}});if(id!==seq)return;posts.value=append?[...posts.value,...data]:data;more.value=data.length===20;}catch(e){error.value=e.response?.data?.message||'목록을 불러오지 못했어요.';}finally{if(id===seq)busy.value=false;}}
+async function open(id){error.value='';thread.value=null;try{thread.value=(await api.get(`/community/${id}`)).data;comment.value='';if(String(route.query.post||'')!==String(id))await router.replace({path:'/community',query:{post:String(id)}});window.scrollTo({top:0});}catch(e){error.value=e.response?.data?.message||'게시글을 불러오지 못했어요.';}}
 async function create(){if(busy.value||photoBusy.value)return;busy.value=true;error.value='';try{let payload=form.value;if(photo){payload=new FormData();Object.entries(form.value).forEach(([k,v])=>payload.append(k,v));payload.append('photo',photo,'community.jpg');}const {data}=await api.post('/community',payload);editor.value.close();form.value={category:'ADVICE',title:'',body:''};clearPhoto();await load();await open(data.id);}catch(e){error.value=e.response?.data?.message||'등록하지 못했어요.';}finally{busy.value=false;}}
 async function reply(){if(busy.value)return;busy.value=true;error.value='';try{await api.post('/community',{parentId:thread.value.post.id,body:comment.value});await open(thread.value.post.id);}catch(e){error.value=e.response?.data?.message||'댓글을 등록하지 못했어요.';}finally{busy.value=false;}}
-async function remove(p){if(!confirm('삭제할까요?'))return;try{await api.delete(`/community/${p.id}`);if(p.parentId)await open(p.parentId);else{thread.value=null;await load();}}catch(e){error.value=e.response?.data?.message||'삭제하지 못했어요.';}}
+async function remove(p){if(!confirm('삭제할까요?'))return;try{await api.delete(`/community/${p.id}`);if(p.parentId)await open(p.parentId);else{backToList();await load();}}catch(e){error.value=e.response?.data?.message||'삭제하지 못했어요.';}}
 async function report(p){const reason=prompt('신고 사유를 입력해 주세요.');if(!reason)return;try{await api.post(`/community/${p.id}/report`,{reason});notice.value='신고를 접수했어요.';}catch(e){error.value=e.response?.data?.message||'신고하지 못했어요.';}}
-onMounted(()=>load());onUnmounted(clearPhoto);
+function backToList(){thread.value=null;router.replace({path:'/community'});}
+watch(()=>route.query.post,id=>{if(id&&/^\d+$/.test(String(id))&&String(thread.value?.post.id)!==String(id))open(id);else if(!id)thread.value=null;});
+onMounted(()=>{load();if(route.query.post&&/^\d+$/.test(String(route.query.post)))open(route.query.post);});onUnmounted(clearPhoto);
 </script>
 <style scoped>
+.collection-tabs{display:flex;gap:6px;margin:0 0 14px}.community .collection-tabs button{border-radius:20px;background:#f4ebe5;color:#978277;font-size:13px;padding:8px 16px}.community .collection-tabs .selected{background:#50382c;color:white}
+
 .community{background:#fffcf9;min-height:calc(100dvh - 84px - var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))}.community-head{padding-right:54px;display:flex;gap:10px}.community-head h1{flex:1}.community .back{background:none;padding:0 12px 0 0;font-size:30px}
 .board-tabs{display:flex;gap:22px;border-bottom:1px solid #eee5df;margin:0 -16px;padding:0 16px;overflow-x:auto;scrollbar-width:none}.community .board-tabs button{white-space:nowrap;border-radius:0;background:none;padding:12px 0 14px;font-size:14px;color:#96887f;position:relative}.community .board-tabs .selected{color:#3c2922;font-weight:750}.board-tabs .selected:after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:3px;background:#d56f4e}
 .board-toolbar{display:flex;align-items:center;justify-content:space-between;padding:18px 0 5px}.board-toolbar>span{font-size:12px;color:#9a8b82}.community .write-button{display:flex;align-items:center;gap:5px;font-size:12px;padding:8px 11px;background:#f6e9e1;border-radius:20px}.write-button svg,.attach-button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7}

@@ -2,7 +2,7 @@ package com.dating.backend.controller;
 import com.dating.backend.matching.CommunityService;import lombok.RequiredArgsConstructor;import org.springframework.web.bind.annotation.*;import org.springframework.security.core.Authentication;import java.util.*;
 @RestController @RequiredArgsConstructor public class CommunityController {
  private final CommunityService service;
- @GetMapping("/api/community") public List<CommunityService.View> list(Authentication a,@RequestParam(defaultValue="ALL")String category,@RequestParam(defaultValue="0")long before){return service.list(a.getName(),category,before);}
+ @GetMapping("/api/community") public List<CommunityService.View> list(Authentication a,@RequestParam(defaultValue="ALL")String category,@RequestParam(defaultValue="0")long before,@RequestParam(defaultValue="false")boolean mine){return service.list(a.getName(),category,before,mine);}
  @GetMapping("/api/community/{id}") public CommunityService.Thread thread(Authentication a,@PathVariable Long id){return service.thread(a.getName(),id);}
  @PostMapping(value="/api/community",consumes="application/json") public CommunityService.View create(Authentication a,@RequestBody CommunityService.Write w){return service.create(a.getName(),w);}
  @DeleteMapping("/api/community/{id}") public void delete(Authentication a,@PathVariable Long id){service.delete(a.getName(),id);}

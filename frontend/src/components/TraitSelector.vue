@@ -4,7 +4,10 @@
     <header><h2>{{section==='성격'?'성향':section}}</h2><span>{{count(section)}}개 선택 · 최대 {{limit(section)}}개</span></header>
     <div class="trait-keywords">
       <button v-if="mode==='preferences'" type="button" :aria-pressed="isAny(section)" @click="clearSection(section)">상관없음</button>
-      <button v-for="entry in entries(section)" :key="entry.group.key+':'+entry.item" type="button" :aria-pressed="selected(entry.group).includes(entry.item)" :disabled="!selected(entry.group).includes(entry.item) && count(section)>=limit(section)" @click="toggle(entry.group,entry.item)">{{entry.item}}</button>
+      <template v-for="entry in entries(section)" :key="entry.group.key+':'+entry.item">
+        <span v-if="isCustom(entry)" class="custom-keyword">{{entry.item}} <span aria-hidden="true">{{hobbyEmoji(entry.item)}}</span><button class="remove-custom" type="button" :aria-label="entry.item+' 삭제'" @click="toggle(entry.group,entry.item)">×</button></span>
+        <button v-else type="button" :aria-pressed="selected(entry.group).includes(entry.item)" :disabled="!selected(entry.group).includes(entry.item) && count(section)>=limit(section)" @click="toggle(entry.group,entry.item)">{{entry.item}}<span v-if="entry.group.key==='hobbies'" aria-hidden="true"> {{hobbyEmoji(entry.item)}}</span></button>
+      </template>
     </div>
     <div v-if="section==='관심사·취미'" class="custom-interest"><input v-model="custom" maxlength="30" aria-label="관심사 직접 작성" placeholder="직접 작성" @keydown.enter.prevent="addCustom(section)"/><button type="button" @click="addCustom(section)">추가</button></div>
     <p v-if="notice.section===section" class="trait-note" role="status">{{notice.text}}</p>
@@ -14,6 +17,8 @@
 </template>
 <script setup>
 import {computed,ref} from 'vue';
+import {hobbyEmoji} from './hobbyEmoji';
+const isCustom=entry=>entry.group.key==='hobbies'&&!entry.group.options.includes(entry.item);
 import {catalog,parseTraits} from './traits';
 const props=defineProps({modelValue:String,mode:{type:String,default:'answers'},scope:{type:String,default:'all'}});
 const emit=defineEmits(['update:modelValue']);
@@ -48,6 +53,9 @@ function clearSection(section){const d=parseTraits(props.modelValue);for(const g
 function toggle(group,item){const d=parseTraits(props.modelValue);let list=[...selected(group)];notice.value={};if(list.includes(item))list=list.filter(value=>value!==item);else if(count(group.section)<limit(group.section))list.push(item);else{notice.value={section:group.section,text:`최대 ${limit(group.section)}개까지 선택할 수 있어요.`};return;}if(props.mode==='answers')d.answers[group.key]=list;else{for(const other of groups(group.section))if(d.preferences[other.key]?.mode==='SIMILAR')d.preferences[other.key]={mode:'ANY',values:[]};d.preferences[group.key]={mode:list.length?'SPECIFIC':'ANY',values:list};}emit('update:modelValue',JSON.stringify(d));}
 </script>
 <style scoped>
+.custom-keyword{position:relative;display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:6px 28px 6px 9px;border:1px solid #b65c3f;border-radius:9px;background:#b65c3f;color:white;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.trait-keywords .remove-custom{position:absolute;right:-3px;top:-5px;display:grid;place-items:center;width:24px;height:24px;min-height:24px!important;padding:0;border:2px solid #fffaf6;border-radius:50%;background:#75422f;color:white;font-size:16px;line-height:1}
+
 .custom-interest{display:flex;gap:8px;margin-top:10px}.custom-interest input{min-width:0;flex:1;padding:9px;border:1px solid #e5c8ba;border-radius:9px}.custom-interest button{border:0;border-radius:9px;background:#b65c3f;color:white;padding:8px 14px}
 .trait-picker{display:block;min-width:0;color:#50382c}
 .trait-category{padding:0 0 16px;margin:0 0 16px;border-bottom:1px solid #efdfd3}

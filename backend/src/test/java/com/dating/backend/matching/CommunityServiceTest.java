@@ -28,4 +28,8 @@ import com.dating.backend.entity.User;import jakarta.persistence.EntityManager;i
   assertThrows(ResponseStatusException.class,()->photos.store(new org.springframework.mock.web.MockMultipartFile("photo","a.jpg","image/jpeg","not an image".getBytes())));
   assertThrows(ResponseStatusException.class,()->photos.read("../../secret"));
  }
+
+ @Test void ownPostFilterIsScopedToLoggedInMember(){var first=post();var second=service.create(b.getEmail(),new CommunityService.Write("DAILY","나의 글","일상",null));assertEquals(first.id(),service.list(a.getEmail(),"ALL",0,true).get(0).id());assertEquals(second.id(),service.list(b.getEmail(),"ALL",0,true).get(0).id());assertTrue(service.list(a.getEmail(),"DAILY",0,true).isEmpty());assertTrue(service.list(a.getEmail(),"ALL",first.id(),true).isEmpty());}
+ @Test void commentsNotifyOnlyPostAuthorWithDeepLink(){var post=post();var reply=service.create(b.getEmail(),new CommunityService.Write(null,null,"새 댓글",post.id()));var notices=inbox.list(a.getEmail(),0);assertEquals(1,notices.size());assertEquals("COMMUNITY_COMMENT:"+reply.id(),notices.get(0).getEventKey());assertEquals("/community?post="+post.id(),notices.get(0).getLink());assertTrue(inbox.list(b.getEmail(),0).isEmpty());em.find(CommunityPost.class,post.id()).setCreatedAt(Instant.now().minusSeconds(20));service.create(a.getEmail(),new CommunityService.Write(null,null,"직접 쓴 댓글",post.id()));assertEquals(1,inbox.list(a.getEmail(),0).size());}
+ @Autowired InboxService inbox;
 }
